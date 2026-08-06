@@ -1,0 +1,45 @@
+# Prerequisites
+*.d
+
+# Compiled object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+vcpkg_installed/
+builds/
+build/
+**/CMakeFiles
+**/Makefile
+.DS_Store
+venv/
+dist/
+wheelhouse/
+__pycache__/
+test/LearningTest/TestKhiops/Standard/Iris/results
+test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log

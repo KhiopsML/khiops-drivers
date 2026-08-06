@@ -1,0 +1,646 @@
+---
+name: packaging
+on:
+  workflow_dispatch:
+    inputs:
+      package_format:
+        description: Package format to build and test
+        type: choice
+        default: all
+        options:
+          - all
+          - debian
+          - rpm
+          - pip
+          - tgz
+      python_repository:
+        description: Python repository used for publication
+        type: choice
+        default: none
+        options:
+          - none
+          - testpypi
+          - pypi
+  push:
+    tags:
+      - '*'
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  KHIOPS_CORE_RELEASE: 11.0.0-rc.2
+  AWS_ENDPOINT_URL: ${{ vars.AWS_ENDPOINT_URL }}
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  build-debian:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'debian'))
+    runs-on: ${{ matrix.setup.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        setup:
+          - { os: ubuntu-latest, image: debian12 }
+          - { os: ubuntu-latest, image: ubuntu24.04 }
+          - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
+    container:
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
+    steps:
+      - name: Install packages
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential coreutils debhelper git ca-certificates curl ninja-build zip pkg-config
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure CMake
+        run: cmake --preset all-ninja-rel
+
+      - name: Build unified package tree
+        run: cmake --build --preset all-ninja-rel
+
+      - name: Build package with CPack
+        run: (cd build/all/ninja-rel && cpack -G DEB)
+
+      - name: Set environment variables
+        run: |
+          source /etc/os-release
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          echo "VERSION_CODENAME=$VERSION_CODENAME" >> "$GITHUB_ENV"
+          echo "ARCH=$(arch)" >> "$GITHUB_ENV"
+          echo "BUILDARCH=$(dpkg --print-architecture)" >> "$GITHUB_ENV"
+
+      - name: Rename packages to include distro codename
+        run: |
+          cd build/all/ninja-rel/packages
+          for filename in *.deb; do
+            mv -v "$filename" "${filename%_*}-${VERSION_CODENAME}.${filename##*_}"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+          path: build/all/ninja-rel/packages/*.deb
+          if-no-files-found: error
+
+  test-debian:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'debian'))
+    needs: build-debian
+    runs-on: ${{ matrix.setup.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        setup:
+          - { os: ubuntu-latest, image: debian12 }
+          - { os: ubuntu-latest, image: ubuntu24.04 }
+          - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
+    container:
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set environment variables
+        run: |
+          source /etc/os-release
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          echo "VERSION_CODENAME=$VERSION_CODENAME" >> "$GITHUB_ENV"
+          echo "ARCH=$(arch)" >> "$GITHUB_ENV"
+          echo "BUILDARCH=$(dpkg --print-architecture)" >> "$GITHUB_ENV"
+          echo "MPI_IMPLEMENTATION=openmpi" >> "$GITHUB_ENV"
+
+      - name: Install curl and Azure CLI prerequisites
+        run: |
+          apt-get update
+          apt-get install -y curl gnupg lsb-release
+
+      - name: Download and install Khiops Core
+        run: |
+          curl -L "https://github.com/KhiopsML/khiops/releases/download/${KHIOPS_CORE_RELEASE}/khiops-core-${MPI_IMPLEMENTATION}_${KHIOPS_CORE_RELEASE}-1-${VERSION_CODENAME}.${BUILDARCH}.deb" --output ./khiops-core.deb
+          dpkg -i ./khiops-core.deb || true
+          apt-get -f install -y
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+          path: artifacts
+
+      - name: Install unified drivers package
+        run: dpkg -i ./artifacts/khiops-drivers*.deb || apt-get -f install -y
+
+      - uses: ./.github/actions/test-khiops-install
+
+      - uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Install Azure CLI
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+      - uses: azure/login@v2.3.0
+        if: github.ref_type != 'tag'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Use Azure connection string on tags
+        if: github.ref_type == 'tag'
+        run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          AZURE_DRIVER_LOGLEVEL: warning
+          AZURE_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: azure/test
+          driver-name: azure
+          os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          GCS_DRIVER_LOGLEVEL: warning
+          GCS_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: gcs/test
+          driver-name: gcs
+          os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          S3_DRIVER_LOGLEVEL: warning
+          S3_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: s3/test
+          driver-name: s3
+          os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+
+  release-debian:
+    if: github.ref_type == 'tag'
+    needs: test-debian
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: deb-*
+          merge-multiple: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: true
+          artifacts: '*.deb'
+          body: |
+            **This release is for testing purposes only and there is no support for it.**
+            **Go to https://khiops.org to install the latest supported version.**
+          draft: false
+          makeLatest: false
+          prerelease: true
+          updateOnlyUnreleased: true
+
+  build-rpm:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'rpm'))
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: rockylinux, os_version: '9' }
+    container:
+      image: ${{ matrix.os }}:${{ matrix.os_version }}
+    steps:
+      - name: Install packages
+        run: |
+          dnf upgrade -y
+          dnf install -y gcc-c++ rpm-build git perl curl ninja-build zip
+          dnf install -y 'dnf-command(config-manager)'
+          dnf config-manager --set-enabled devel
+          dnf install -y cmake
+          dnf config-manager --set-disabled devel
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Configure CMake
+        run: cmake --preset all-ninja-rel
+
+      - name: Build unified package tree
+        run: cmake --build --preset all-ninja-rel
+
+      - name: Build package with CPack
+        run: (cd build/all/ninja-rel && cpack -G RPM)
+
+      - name: Set environment variables
+        run: |
+          source /etc/os-release
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          echo "VERSION_CODENAME=$(echo $PLATFORM_ID | cut -d':' -f2)" >> "$GITHUB_ENV"
+          echo "ARCH=$(arch)" >> "$GITHUB_ENV"
+
+      - name: Rename packages with distro codename
+        run: |
+          cd build/all/ninja-rel/packages
+          for filename in *.rpm; do
+            mv -v "$filename" "${filename%.${ARCH}*}.${VERSION_CODENAME}.${ARCH}.rpm"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: rpm-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
+          path: build/all/ninja-rel/packages/*.rpm
+          if-no-files-found: error
+
+  test-rpm:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'rpm'))
+    needs: build-rpm
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: rockylinux, os_version: '9' }
+    container:
+      image: ${{ matrix.os }}:${{ matrix.os_version }}
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set environment variables
+        run: |
+          source /etc/os-release
+          echo "ID=$ID" >> "$GITHUB_ENV"
+          echo "VERSION=$(echo $PLATFORM_ID | cut -d':' -f2)" >> "$GITHUB_ENV"
+          echo "ARCH=$(arch)" >> "$GITHUB_ENV"
+          echo "MPI_IMPLEMENTATION=openmpi" >> "$GITHUB_ENV"
+
+      - name: Download and install Khiops core
+        run: |
+          RPM_VERSION="${KHIOPS_CORE_RELEASE//-/_}"
+          curl -L "https://github.com/KhiopsML/khiops/releases/download/${KHIOPS_CORE_RELEASE}/khiops-core-${MPI_IMPLEMENTATION}-${RPM_VERSION}-1.${VERSION}.x86_64.rpm" --output ./khiops-core.rpm
+          yum install -y ./khiops-core.rpm
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: rpm-${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
+          path: artifacts
+
+      - name: Install unified drivers package
+        run: yum install -y ./artifacts/khiops-drivers*.rpm
+
+      - uses: ./.github/actions/test-khiops-install
+
+      - uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Install Azure CLI
+        run: |
+          dnf install -y https://packages.microsoft.com/config/rhel/${{ matrix.os_version }}/packages-microsoft-prod.rpm
+          dnf install -y azure-cli
+
+      - uses: azure/login@v2.3.0
+        if: github.ref_type != 'tag'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Use Azure connection string on tags
+        if: github.ref_type == 'tag'
+        run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          AZURE_DRIVER_LOGLEVEL: warning
+          AZURE_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: azure/test
+          driver-name: azure
+          os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          GCS_DRIVER_LOGLEVEL: warning
+          GCS_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: gcs/test
+          driver-name: gcs
+          os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          S3_DRIVER_LOGLEVEL: warning
+          S3_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: s3/test
+          driver-name: s3
+          os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
+
+  release-rpm:
+    if: github.ref_type == 'tag'
+    needs: test-rpm
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: rpm-*
+          merge-multiple: true
+
+      - uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: true
+          artifacts: '*.rpm'
+          body: |
+            **This release is for testing purposes only and there is no support for it.**
+            **Go to https://khiops.org to install the latest supported version.**
+          draft: false
+          makeLatest: false
+          prerelease: true
+          updateOnlyUnreleased: true
+
+  build-pip-sdist:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - run: pipx run build --sdist
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-sdist
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  build-pip-wheel:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025-vs2026
+          - macos-15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
+      - uses: pypa/cibuildwheel@v3.3.1
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-wheel-${{ matrix.os }}
+          path: wheelhouse/*.whl
+          if-no-files-found: error
+
+  test-pip:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    needs:
+      - build-pip-sdist
+      - build-pip-wheel
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - windows-2025-vs2026
+          - macos-15
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-*
+          path: wheelhouse
+          merge-multiple: true
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.9'
+
+      - name: Create a virtual environment
+        run: python -m venv venv
+
+      - name: Add the directory containing the executables to PATH (Linux and macOS)
+        if: runner.os == 'Linux' || runner.os == 'macOS'
+        run: echo "$(pwd)/venv/bin" >> "$GITHUB_PATH"
+
+      - name: Add the directory containing the executables to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          "$((Resolve-Path 'venv/Scripts').Path)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Khiops Core
+        run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
+
+      - name: Install unified drivers wheel
+        run: pip install --find-links=wheelhouse khiops-drivers
+
+      - name: Add Intel MPI runtime to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $venvRoot = Resolve-Path "venv"
+          $impiDll = Get-ChildItem -Path $venvRoot -Recurse -Filter "impi.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $impiDll) {
+            Write-Error "impi.dll not found in venv"
+            exit 1
+          }
+          "$($impiDll.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - uses: ./.github/actions/test-khiops-install
+
+      - uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - uses: azure/login@v2.3.0
+        if: github.ref_type != 'tag'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Use Azure connection string on tags
+        if: github.ref_type == 'tag'
+        run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          AZURE_DRIVER_LOGLEVEL: warning
+          AZURE_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: azure/test
+          driver-name: azure
+          os-description: ${{ matrix.os }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          GCS_DRIVER_LOGLEVEL: warning
+          GCS_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: gcs/test
+          driver-name: gcs
+          os-description: ${{ matrix.os }}
+
+      - uses: ./.github/actions/test-khiops-on-iris
+        env:
+          S3_DRIVER_LOGLEVEL: warning
+          S3_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: s3/test
+          driver-name: s3
+          os-description: ${{ matrix.os }}
+
+  publish-testpypi:
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && github.repository_owner == 'KhiopsML' && inputs.python_repository == 'testpypi'
+    needs:
+      - build-pip-sdist
+      - build-pip-wheel
+      - test-pip
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/khiops-drivers
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  publish-pypi:
+    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && github.repository_owner == 'KhiopsML' && inputs.python_repository == 'pypi'
+    needs: test-pip
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/khiops-drivers
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: pkg-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  build-tgz:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'tgz'))
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Install packages
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y git ca-certificates
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Create source archive
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          bash gcs/scripts/git-archive-all.sh --format tar.gz khiops-drivers.tar.gz
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pkg-tgz
+          path: khiops-drivers.tar.gz
+          if-no-files-found: error
+
+  test-tgz:
+    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'tgz'))
+    needs: build-tgz
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg-tgz
+          path: artifacts
+
+      - name: Extract and validate source archive
+        run: |
+          mkdir extracted
+          tar -xzf artifacts/khiops-drivers.tar.gz -C extracted
+          find extracted -maxdepth 2 -type f | head -20
+          test -f extracted/CMakeLists.txt || test -f extracted/*/CMakeLists.txt
+          test -f extracted/pyproject.toml || test -f extracted/*/pyproject.toml
+
+  release-tgz:
+    if: github.ref_type == 'tag'
+    needs: test-tgz
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: pkg-tgz
+
+      - uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: true
+          artifacts: '*.tar.gz'
+          body: |
+            **This release is for testing purposes only and there is no support for it.**
+            **Go to https://khiops.org to install the latest supported version.**
+          draft: false
+          makeLatest: false
+          prerelease: true
+          updateOnlyUnreleased: true

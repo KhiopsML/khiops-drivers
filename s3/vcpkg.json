@@ -1,0 +1,25 @@
+{
+  "name": "s3-driver",
+  "version-string": "latest",
+  "description": "Setting up AWS SDK with CMake and vcpkg",
+  "dependencies": [
+    {
+      "name": "aws-sdk-cpp",
+      "features": [
+        "s3"
+      ]
+    },
+    {
+      "name": "boost-process"
+    },
+    {
+      "name": "boost-uuid"
+    },
+    {
+      "name": "spdlog"
+    },
+    {
+      "name": "zlib"
+    }
+  ]
+}

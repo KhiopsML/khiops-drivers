@@ -1,0 +1,95 @@
+---
+name: Test Khiops Installation
+description: Test Khiops detection of installed drivers
+inputs:
+  expected-drivers:
+    description: Driver display names expected in `khiops -s`
+    required: false
+    default: |
+      Azure driver
+      GCS driver
+      S3 driver
+runs:
+  using: composite
+  steps:
+    - name: Check Khiops output [UNIXes]
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        KHIOPS_PROC_NUMBER: 4
+        OMPI_MCA_rmaps_base_oversubscribe: true
+        PRTE_MCA_rmaps_default_mapping_policy: :oversubscribe
+        KHIOPS_MPI_VERBOSE: true
+        EXPECTED_DRIVERS: ${{ inputs.expected-drivers }}
+      run: |
+        set -euo pipefail
+
+        khiops -s | tee khiops-status.txt
+        khiops -v &> khiops-version.txt
+
+        line_count=$(wc -l < khiops-version.txt)
+        if [[ "$line_count" -gt 1 ]]; then
+          echo "::error::Unexpected output in khiops -v"
+          exit 1
+        fi
+
+        while IFS= read -r pattern; do
+          [[ -z "$pattern" ]] && continue
+          if ! grep -F "$pattern" khiops-status.txt > /dev/null; then
+            echo "::error::Pattern '$pattern' not found in khiops -s output"
+            exit 1
+          fi
+        done <<< "$EXPECTED_DRIVERS"
+
+    - name: Check Khiops output [Windows]
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        KHIOPS_PROC_NUMBER: 4
+        EXPECTED_DRIVERS: ${{ inputs.expected-drivers }}
+      run: |
+        $cmd = (Get-Command khiops.cmd -ErrorAction SilentlyContinue)?.Source
+        if (-not $cmd) {
+          $cmd = (Get-Command khiops -ErrorAction Stop).Source
+        }
+
+        $stdout = Join-Path $env:RUNNER_TEMP "khiops_stdout.txt"
+        $stderr = Join-Path $env:RUNNER_TEMP "khiops_stderr.txt"
+
+        $p = Start-Process -FilePath $cmd `
+          -ArgumentList "-s" `
+          -RedirectStandardOutput $stdout `
+          -RedirectStandardError $stderr `
+          -NoNewWindow `
+          -PassThru
+
+        if (-not $p.WaitForExit(60000)) {
+          Stop-Process -Id $p.Id -Force
+          Write-Error "Timeout: khiops -s did not finish within 60s"
+          exit 1
+        }
+
+        $out = Get-Content $stdout -Raw -ErrorAction SilentlyContinue
+        $err = Get-Content $stderr -Raw -ErrorAction SilentlyContinue
+
+        Write-Host "----- STDOUT -----"
+        $out | Out-Host
+        Write-Host "----- STDERR -----"
+        $err | Out-Host
+        Write-Host "ExitCode=$($p.ExitCode)"
+
+        $versionOut = Join-Path $env:RUNNER_TEMP "khiops_version.txt"
+        cmd /c "\"$cmd\" -v" *> $versionOut
+        $lineCount = (Get-Content $versionOut | Measure-Object -Line).Lines
+        if ($lineCount -gt 1) {
+          Write-Error "Unexpected output in khiops -v"
+          exit 1
+        }
+
+        $patterns = $env:EXPECTED_DRIVERS -split "`r?`n" | Where-Object { $_ -ne "" }
+        foreach ($pattern in $patterns) {
+          if ($out -notmatch [regex]::Escape($pattern)) {
+            Write-Error "Pattern '$pattern' not found in stdout"
+            exit 1
+          }
+        }

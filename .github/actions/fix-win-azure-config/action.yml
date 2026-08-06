@@ -1,0 +1,16 @@
+---
+name: Fix Azure Config on Windows
+description: Fix Azure configuration path on Windows, for jobs using both bash and powershell
+runs:
+  using: composite
+  steps:
+    - name: Export fixed HOME and AZURE_CONFIG_DIR
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        if [[ -n "$USERPROFILE" ]]; then
+          export HOME="$USERPROFILE"
+        fi
+        export AZURE_CONFIG_DIR="$HOME/.azure"
+        echo "HOME=$HOME" >> "$GITHUB_ENV"
+        echo "AZURE_CONFIG_DIR=$AZURE_CONFIG_DIR" >> "$GITHUB_ENV"

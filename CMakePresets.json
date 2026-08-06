@@ -1,0 +1,189 @@
+{
+  "version": 3,
+  "configurePresets": [
+    {
+      "hidden": true,
+      "name": "base",
+      "generator": "Ninja"
+    },
+    {
+      "hidden": true,
+      "name": "azure-base",
+      "inherits": [
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/azure/${presetName}",
+      "toolchainFile": "${sourceDir}/azure/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "KHIOPS_DRIVER": "azure",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/azure"
+      }
+    },
+    {
+      "hidden": true,
+      "name": "gcs-base",
+      "inherits": [
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/gcs/${presetName}",
+      "toolchainFile": "${sourceDir}/gcs/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "KHIOPS_DRIVER": "gcs",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/gcs"
+      }
+    },
+    {
+      "hidden": true,
+      "name": "s3-base",
+      "inherits": [
+        "base"
+      ],
+      "binaryDir": "${sourceDir}/build/s3/${presetName}",
+      "toolchainFile": "${sourceDir}/s3/vcpkg/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "KHIOPS_DRIVER": "s3",
+        "VCPKG_MANIFEST_DIR": "${sourceDir}/s3"
+      }
+    },
+    {
+      "name": "azure-ninja-dbg",
+      "inherits": [
+        "azure-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "azure-ninja-rel",
+      "inherits": [
+        "azure-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "gcs-ninja-dbg",
+      "inherits": [
+        "gcs-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "gcs-ninja-rel",
+      "inherits": [
+        "gcs-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "s3-ninja-dbg",
+      "inherits": [
+        "s3-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "s3-ninja-rel",
+      "inherits": [
+        "s3-base"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "all-ninja-rel",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/all/ninja-rel",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "KHIOPS_PACKAGE_ALL": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "azure-ninja-dbg",
+      "configurePreset": "azure-ninja-dbg"
+    },
+    {
+      "name": "azure-ninja-rel",
+      "configurePreset": "azure-ninja-rel"
+    },
+    {
+      "name": "gcs-ninja-dbg",
+      "configurePreset": "gcs-ninja-dbg"
+    },
+    {
+      "name": "gcs-ninja-rel",
+      "configurePreset": "gcs-ninja-rel"
+    },
+    {
+      "name": "s3-ninja-dbg",
+      "configurePreset": "s3-ninja-dbg"
+    },
+    {
+      "name": "s3-ninja-rel",
+      "configurePreset": "s3-ninja-rel"
+    },
+    {
+      "name": "all-ninja-rel",
+      "configurePreset": "all-ninja-rel"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "azure-ninja-dbg",
+      "configurePreset": "azure-ninja-dbg",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "azure-ninja-rel",
+      "configurePreset": "azure-ninja-rel",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "gcs-ninja-dbg",
+      "configurePreset": "gcs-ninja-dbg",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "gcs-ninja-rel",
+      "configurePreset": "gcs-ninja-rel",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "s3-ninja-dbg",
+      "configurePreset": "s3-ninja-dbg",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "s3-ninja-rel",
+      "configurePreset": "s3-ninja-rel",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

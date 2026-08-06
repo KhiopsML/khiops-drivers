@@ -1,0 +1,82 @@
+# This file packages all three Khiops cloud storage drivers (Azure, GCS, S3)
+# as a single pip package named "khiops-drivers".
+
+[build-system]
+requires = ["scikit-build-core>=0.11.6"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "khiops-drivers"
+readme = "README.md"
+requires-python = ">=3.9"
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE"]
+maintainers = [{name = "Khiops Team", email = "khiops.team@orange.com"}]
+dynamic = ["version", "description"]
+
+[tool.scikit-build]
+# Include all three vcpkg checkouts in the source distribution so that the
+# package can be built offline.
+sdist.include = ["/azure/vcpkg", "/gcs/vcpkg", "/s3/vcpkg"]
+sdist.exclude = [
+    ".*",
+    "__pycache__",
+    "/dist",
+    "/wheelhouse",
+    "/build",
+    "/azure/vcpkg/buildtrees",
+    "/azure/vcpkg/downloads",
+    "/azure/vcpkg/packages",
+    "/gcs/vcpkg/buildtrees",
+    "/gcs/vcpkg/downloads",
+    "/gcs/vcpkg/packages",
+    "/s3/vcpkg/buildtrees",
+    "/s3/vcpkg/downloads",
+    "/s3/vcpkg/packages",
+]
+wheel.py-api = "py3"
+cmake.version = "CMakeLists.txt"
+# No --preset here: scikit-build-core drives the configure step directly.
+# The root CMakeLists.txt detects SKBUILD and orchestrates the three sub-builds.
+cmake.args = ["-G", "Ninja"]
+cmake.define.CMAKE_BUILD_TYPE = "Release"
+build-dir = "build/pip"
+ninja.make-fallback = false
+
+[tool.scikit-build.metadata]
+version.provider = "scikit_build_core.metadata.regex"
+version.input = "src/khiops_driver_common/version.hpp"
+version.regex = '''(?x)
+    \# \s* define \s+ DRIVER_VERSION \s+
+    "
+    (?P<major> \d+)
+    \.
+    (?P<minor> \d+)
+    \.
+    (?P<patch> \d+)
+    (?:
+        -
+        (?P<prereltype> a | b | rc)
+        \.
+        (?P<prereln> \d+)
+    )?
+    "
+'''
+version.result = "{major}.{minor}.{patch}{prereltype}{prereln}"
+version.remove = "(None){,2}$"
+description.provider = "scikit_build_core.metadata.regex"
+description.input = "README.md"
+description.regex = '(?x) \# \s+ (?P<description> Khiops \s+ Drivers [^\n]*)'
+description.result = "{description}"
+
+[tool.cibuildwheel]
+build = "cp39-*"
+skip = "*musllinux*"
+archs = "auto64"
+
+[tool.cibuildwheel.linux]
+before-all = [
+    "DEB_NEEDS='zip perl ninja-build'",
+    "FED_NEEDS='zip perl ninja-build'",
+    "apt-get install -y $DEB_NEEDS || dnf install -y $FED_NEEDS"
+]

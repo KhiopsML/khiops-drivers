@@ -1,0 +1,140 @@
+---
+name: hosted-pure-workflow
+on:
+  workflow_dispatch:
+
+jobs:
+  job:
+    name: ${{ matrix.driver }}-${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { driver: azure, os: ubuntu-latest, triplet: x64-linux, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-latest, triplet: arm64-osx, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-15-intel, triplet: x64-osx, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-14, triplet: arm64-osx, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: windows-latest, triplet: x64-windows-static, rel_preset: azure-ninja-rel }
+          - { driver: gcs, os: ubuntu-latest, triplet: x64-linux, rel_preset: gcs-ninja-rel }
+          - { driver: gcs, os: macos-latest, triplet: arm64-osx, rel_preset: gcs-ninja-rel }
+          - { driver: gcs, os: macos-15-intel, triplet: x64-osx, rel_preset: gcs-ninja-rel }
+          - { driver: gcs, os: macos-14, triplet: arm64-osx, rel_preset: gcs-ninja-rel }
+          - { driver: gcs, os: windows-latest, triplet: x64-windows-static, rel_preset: gcs-ninja-rel }
+          - { driver: s3, os: ubuntu-latest, triplet: x64-linux, rel_preset: s3-ninja-rel }
+          - { driver: s3, os: macos-latest, triplet: arm64-osx, rel_preset: s3-ninja-rel }
+          - { driver: s3, os: macos-15-intel, triplet: x64-osx, rel_preset: s3-ninja-rel }
+          - { driver: s3, os: macos-14, triplet: arm64-osx, rel_preset: s3-ninja-rel }
+          - { driver: s3, os: windows-latest, triplet: x64-windows, rel_preset: s3-ninja-rel }
+    defaults:
+      run:
+        shell: bash
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      _VCPKG_: ${{ github.workspace }}/${{ matrix.driver }}/vcpkg
+      VCPKG_DEFAULT_BINARY_CACHE: ${{ github.workspace }}/${{ matrix.driver }}/vcpkg/bincache
+      VCPKG_BINARY_SOURCES: clear;x-gha,readwrite
+      VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+      AWS_ENDPOINT_URL: ${{ vars.AWS_ENDPOINT_URL }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: ./.github/actions/fix-win-azure-config
+        if: matrix.driver == 'azure'
+
+      - name: Create vcpkg binary cache directory
+        run: mkdir -p "$VCPKG_DEFAULT_BINARY_CACHE"
+
+      - uses: lukka/get-cmake@v3.30.3
+
+      - name: Restore vcpkg cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env._VCPKG_ }}
+            !${{ env._VCPKG_ }}/buildtrees
+            !${{ env._VCPKG_ }}/packages
+            !${{ env._VCPKG_ }}/downloads
+            !${{ env._VCPKG_ }}/installed
+          key: ${{ hashFiles(format('.git/modules/{0}/vcpkg/HEAD', matrix.driver)) }}
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+
+      - name: Install Azurite
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        id: azuright
+        uses: sgouache/azuright@v1.2
+        with:
+          skip-api-version-check: true
+
+      - name: Set Azure test prefixes
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        run: |
+          EMULATED_BLOB_ENDPOINT=$(echo '${{ steps.azuright.outputs.connstring }}' | tr ';' '\n' | grep -E '^BlobEndpoint=' | cut -d'=' -f2)
+          echo "STORAGE_DRIVER_TEST_URL_PREFIX=https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
+          echo "AZURE_EMULATED_BLOB_PREFIX=$EMULATED_BLOB_ENDPOINT/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
+
+      - name: Populate Azurite with test data
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          az storage container create -n data-test-khiops-driver-azure --connection-string "${{ steps.azuright.outputs.connstring }}"
+          az storage blob upload-batch --destination data-test-khiops-driver-azure/khiops_data --source "$PWD/azure/khiops_data" --connection-string "${{ steps.azuright.outputs.connstring }}"
+
+      - uses: google-github-actions/auth@v2
+        if: matrix.driver == 'gcs'
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Configure CMake
+        run: cmake --preset "${{ matrix.rel_preset }}" -DBUILD_TESTS=ON
+
+      - name: Build release
+        run: cmake --build --preset "${{ matrix.rel_preset }}"
+
+      - uses: azure/login@v2.3.0
+        if: matrix.driver == 'azure' && github.ref_type != 'tag'
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Use Azure connection string on tags
+        if: matrix.driver == 'azure' && github.ref_type == 'tag'
+        run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
+
+      - name: Test Azure release
+        if: matrix.driver == 'azure'
+        run: ctest --preset "${{ matrix.rel_preset }}" --output-junit test_results.xml
+        env:
+          CTEST_PARALLEL_LEVEL: ''
+          STORAGE_DRIVER_TEST_URL_PREFIX: https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure
+
+      - name: Test non-Azure release
+        if: matrix.driver != 'azure'
+        run: ctest --preset "${{ matrix.rel_preset }}" --output-junit test_results.xml
+        env:
+          CTEST_PARALLEL_LEVEL: ''
+          STORAGE_DRIVER_TEST_URL_PREFIX: ${{ matrix.driver == 'gcs' && 'gs://data-test-khiops-driver-gcs' || 's3://diod-data-di-jupyterhub' }}
+
+      - name: Upload test summary
+        if: always()
+        uses: test-summary/action@v2
+        with:
+          paths: ${{ github.workspace }}/build/${{ matrix.driver }}/${{ matrix.rel_preset }}/test_results.xml

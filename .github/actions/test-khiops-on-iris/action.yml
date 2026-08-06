@@ -1,0 +1,95 @@
+---
+name: Test Khiops on Iris
+description: Test a Khiops installation on the Iris dataset of a specific driver
+inputs:
+  test-root:
+    description: Driver test root directory, for example azure/test
+    required: true
+  driver-name:
+    description: Short driver name used in artifact names
+    required: true
+  os-description:
+    description: OS description used to name artifacts
+    required: true
+  show-openmpi-errors:
+    description: Set to false to stop displaying full OpenMPI error log
+    required: false
+    default: 'true'
+runs:
+  using: composite
+  steps:
+    - name: Python setup for Linux
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if ! command -v python3 &> /dev/null; then
+          if [[ -d /etc/apt ]]; then
+            apt-get update
+            apt-get install -y python3 > /dev/null
+          else
+            yum check-update || true
+            yum install -y python3.11
+          fi
+        fi
+        echo "PYTHON=python3" >> "$GITHUB_ENV"
+
+    - name: Python setup for Windows or macOS
+      if: runner.os == 'Windows' || runner.os == 'macOS'
+      shell: bash
+      run: echo "PYTHON=python" >> "$GITHUB_ENV"
+
+    - name: Set the Khiops launcher path
+      shell: bash
+      run: |
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          khiops_cmd=$(pwsh -NoLogo -NoProfile -Command "(Get-Command khiops.cmd -ErrorAction Stop).Source")
+          echo "KHIOPS_SCRIPT=$khiops_cmd" >> "$GITHUB_ENV"
+        else
+          echo "KHIOPS_SCRIPT=$(command -v khiops)" >> "$GITHUB_ENV"
+        fi
+
+    - name: Copy Azure directory to root home in container jobs
+      if: ${{ job.container.id != '' }}
+      shell: bash
+      run: |
+        if [[ -d "$HOME/.azure" && "$HOME" != "/root" ]]; then
+          mkdir -p /root/.azure
+          cp -r "$HOME/.azure/." /root/.azure/ || true
+        fi
+
+    - name: Run Khiops tests
+      shell: bash
+      env:
+        KHIOPS_PROC_NUMBER: 4
+        OMPI_MCA_rmaps_base_oversubscribe: true
+        PRTE_MCA_rmaps_default_mapping_policy: :oversubscribe
+        KHIOPS_API_MODE: true
+        KHIOPS_MPI_VERBOSE: ${{ inputs.show-openmpi-errors }}
+      run: |
+        set -euo pipefail
+        cd "${{ inputs.test-root }}/LearningTest/TestKhiops/Standard/Iris"
+        "$KHIOPS_SCRIPT" -b -i test.prm -e results/err.txt
+
+    - name: Check test results
+      shell: bash
+      run: |
+        set -euo pipefail
+        touch "${{ inputs.test-root }}/LearningTest/TestKhiops/Standard/Iris/results/time.log"
+        cd "${{ inputs.test-root }}/LearningTestTool/py"
+        "$PYTHON" kht_test.py ../../LearningTest/TestKhiops/Standard/Iris check
+        "$PYTHON" kht_apply.py ../../LearningTest/TestKhiops/Standard/Iris errors | tee /tmp/khiops-log.txt
+        "$PYTHON" kht_collect_results.py ../../LearningTest/TestKhiops/Standard/Iris "$GITHUB_WORKSPACE/results/khiops/${{ inputs.driver-name }}" --collect-type warnings
+        if grep -q error /tmp/khiops-log.txt; then
+          echo "::error::Errors in Khiops run"
+          exit 1
+        fi
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-results-${{ inputs.driver-name }}-${{ inputs.os-description }}
+        retention-days: 7
+        path: |
+          ${{ inputs.test-root }}/LearningTest/TestKhiops/Standard/Iris/results
+          results/

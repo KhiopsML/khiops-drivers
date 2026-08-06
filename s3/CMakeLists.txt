@@ -1,0 +1,250 @@
+# CMakeLists.txt
+
+# Ensure to pick up the default triplet from the environment if any. This helps
+# driving the vcpkg triplet in the same way either when starting vcpkg directly,
+# or when letting CMake start vcpkg at configure/generate time. Note: this logic
+# must happen before PROJECT command.
+if(DEFINED ENV{VCPKG_DEFAULT_TRIPLET} AND NOT DEFINED VCPKG_TARGET_TRIPLET)
+  set(VCPKG_TARGET_TRIPLET
+      "$ENV{VCPKG_DEFAULT_TRIPLET}"
+      CACHE STRING "The vcpkg triplet")
+endif()
+
+cmake_minimum_required(VERSION 3.20)
+# Enforce c++11 standard.
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Get project version from the shared header
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/../src/khiops_driver_common/version.hpp" H_FILE)
+string(REGEX MATCH "#define DRIVER_VERSION \"([^\"]+)\"" _ ${H_FILE})
+set(DRIVER_VERSION ${CMAKE_MATCH_1})
+string(REGEX REPLACE "-.*" "" VERSION ${DRIVER_VERSION})
+message(
+  STATUS
+    "Building Khiops driver version: ${DRIVER_VERSION} (CMake version : ${VERSION})"
+)
+
+project(
+  khiops-s3
+  LANGUAGES CXX
+  VERSION ${DRIVER_VERSION})
+
+# Exclude googletest from the installation and packages
+set(INSTALL_GTEST OFF)
+set(INSTALL_GMOCK OFF)
+
+include(GoogleTest)
+enable_testing()
+
+# Find dependencies
+find_package(fmt CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(
+  AWSSDK CONFIG
+  COMPONENTS s3
+  REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
+
+# Hide symbols in the shared libraries
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+
+# Set the location of the built artifacts:
+#
+# * Shared and static library target directory: lib
+# * Executable target directory: bin
+# * We must use these weird generator expressions to avoid the Debug and Release
+#   directories in VS
+# * More info: https://stackoverflow.com/q/47175912
+#
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY $<1:${CMAKE_BINARY_DIR}/lib/>)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY $<1:${CMAKE_BINARY_DIR}/lib/>)
+if(WIN32)
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+  message(STATUS "Executables will be stored in ${CMAKE_BINARY_DIR}/bin/")
+else()
+  set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+  message(STATUS "Executables will be stored in ${CMAKE_BINARY_DIR}/lib/")
+endif()
+message(STATUS "Libraries will be stored in ${CMAKE_BINARY_DIR}/lib/")
+
+# Avoid generating shared libs with version number in the filename
+set(CMAKE_PLATFORM_NO_VERSIONED_SONAME 1)
+
+if((CMAKE_SYSTEM_NAME STREQUAL "Linux") AND NOT (CMAKE_BUILD_TYPE STREQUAL
+                                                 "Release"))
+  message("Build system == Linux, build with sanitizer tools")
+  add_compile_options(-fsanitize=undefined -fsanitize=address
+                      -fno-sanitize-recover=all)
+  add_link_options(-fsanitize=undefined -fsanitize=address
+                   -fno-sanitize-recover=all)
+  set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/)
+  include(CodeCoverage)
+  set(CMAKE_CXX_FLAGS_DEBUG
+      "${CMAKE_CXX_FLAGS_COVERAGE} ${CMAKE_CXX_FLAGS_DEBUG}")
+  setup_target_for_coverage(${PROJECT_NAME}_coverage basic_test coverage)
+  setup_target_for_coverage_cobertura(
+    ${PROJECT_NAME}_cobertura basic_test coverage
+    --gtest_output=xml:coverage.junit.xml)
+endif()
+
+include("${PROJECT_SOURCE_DIR}/../import_khiops_driver_common.cmake")
+list(TRANSFORM KhiopsDriverCommonSources PREPEND ${PROJECT_SOURCE_DIR}/../)
+
+add_library(
+  khiopsdriver_file_s3 SHARED
+  src/s3plugin.h
+  src/s3plugin_internal.h
+  src/s3plugin.cpp
+  ${KhiopsDriverCommonSources})
+
+target_include_directories(khiopsdriver_file_s3 PRIVATE ${AWSSDK_INCLUDE_DIRS} ${PROJECT_SOURCE_DIR}/../src)
+if(NOT MSVC)
+  target_link_options(khiopsdriver_file_s3 PRIVATE $<$<CONFIG:RELEASE>:-s>)# stripping
+endif()
+target_link_libraries(khiopsdriver_file_s3 PRIVATE ${AWSSDK_LIBRARIES} spdlog::spdlog)
+
+set_target_properties(
+  khiopsdriver_file_s3
+  PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR}
+             VERSION ${PROJECT_VERSION})
+
+# For consistent naming across platforms
+if(WIN32)
+  set_target_properties(
+    khiopsdriver_file_s3
+    PROPERTIES # Override or add Windows-specific properties
+               RUNTIME_OUTPUT_NAME "libkhiopsdriver_file_s3"
+               ARCHIVE_OUTPUT_NAME "libkhiopsdriver_file_s3")
+  # WINDOWS_EXPORT_ALL_SYMBOLS ON)
+endif()
+
+target_compile_options(
+  khiopsdriver_file_s3
+  PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4582;/wd4583;/wd4625;/wd4626;/wd4710;/wd4711;/wd4820;/wd4868;/wd4365;/wd5045>
+  PRIVATE $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-pedantic>)
+
+option(BUILD_TESTS "Build test programs" OFF)
+
+if(BUILD_TESTS)
+  add_executable(KhiopsPluginTest src/khiopsplugintest.cpp)
+  target_link_libraries(KhiopsPluginTest PRIVATE fmt::fmt ${CMAKE_DL_LIBS})
+  add_executable(drivertest src/drivertest.cpp)
+  target_link_libraries(drivertest ${CMAKE_DL_LIBS}) # Link to dl
+
+  add_subdirectory(test)
+  set(storage_driver_target_name khiopsdriver_file_s3)
+  if(NOT DEFINED ENV{STORAGE_DRIVER_TEST_URL_PREFIX})
+    set(ENV{STORAGE_DRIVER_TEST_URL_PREFIX} "s3://diod-data-di-jupyterhub")
+  endif()
+  set(STORAGE_DRIVER_LSAN_SUPPRESSIONS_FILE "${PROJECT_SOURCE_DIR}/lsan_suppressions.txt")
+  add_subdirectory("${PROJECT_SOURCE_DIR}/../test" "${CMAKE_CURRENT_BINARY_DIR}/shared-test")
+endif(BUILD_TESTS)
+
+if(DEFINED SKBUILD)
+  # These paths are needed so that Khiops finds the driver.
+  install(
+    TARGETS khiopsdriver_file_s3
+    LIBRARY DESTINATION ${SKBUILD_DATA_DIR}/lib
+    ARCHIVE DESTINATION ${SKBUILD_DATA_DIR}/lib # lib on windows
+    RUNTIME DESTINATION ${SKBUILD_SCRIPTS_DIR}) # dll on windows
+  if(WIN32)
+    install(CODE "
+      file(GLOB dlls LIST_DIRECTORIES false \"${CMAKE_BINARY_DIR}/bin/*.dll\")
+      if(NOT dlls)
+        message(FATAL_ERROR \"Failed to find the DLLs of the dependencies in '${CMAKE_BINARY_DIR}/bin/' .\")
+      endif()
+      list(REMOVE_ITEM dlls \"${CMAKE_BINARY_DIR}/bin/libkhiopsdriver_file_s3.dll\")
+      file(INSTALL DESTINATION ${SKBUILD_SCRIPTS_DIR} TYPE FILE FILES \${dlls})
+    ")
+  endif()
+else()
+  install(
+    TARGETS khiopsdriver_file_s3
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib # lib on windows
+    RUNTIME DESTINATION bin) # dll on windows
+endif()
+
+set(CPACK_PACKAGE_VENDOR Orange)
+set(CPACK_PACKAGE_HOMEPAGE_URL https://khiops.org)
+set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/../LICENSE")
+set(CPACK_PACKAGE_VENDOR "Orange")
+set(CPACK_PACKAGE_CONTACT "Khiops Team <khiops.team@orange.com>")
+set(CPACK_SOURCE_IGNORE_FILES .git)
+set(CPACK_PACKAGE_DESCRIPTION
+    "This driver allows Khiops to access the Amazon S3 Cloud storage.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "S3 driver for the Khiops tool")
+set(CPACK_PACKAGE_NAME "khiops-driver-s3")
+
+set(CPACK_VERBATIM_VARIABLES YES)
+set(CPACK_PACKAGE_INSTALL_DIRECTORY ${CPACK_PACKAGE_NAME})
+set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_BINARY_DIR}/packages")
+# set(CPACK_PACKAGING_INSTALL_PREFIX "/usr/")
+
+# ########### ARCHIVE Generator #############################
+
+# One package per component
+set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
+
+# user friendly archive names
+set(CPACK_ARCHIVE_FILE_NAME khiops-driver-s3-${PROJECT_VERSION})
+
+# ########### DEB Generator #############################
+
+# Package release ("This is the numbering of the DEB package itself, i.e. the
+# version of the packaging and not the version of the content")
+set(CPACK_DEBIAN_PACKAGE_RELEASE 1)
+
+# package name for deb.
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+# Packages version: the full KHIOPS_VERSION (N.N.N_aN) instead of the
+# PROJECT_VERSION (N.N.N) set(CPACK_DEBIAN_PACKAGE_VERSION ${KHIOPS_VERSION})
+
+set(CPACK_DEB_COMPONENT_INSTALL YES)
+set(CPACK_DEBIAN_PACKAGE_SECTION "math")
+
+# runtime path setting
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
+# binaries in deb building will search shared library in the build tree. We
+# should use directly CMAKE_LIBRARY_OUTPUT_DIRECTORY but it produces a bug in
+# dpkg-shlibdeps
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS ${CMAKE_BINARY_DIR}/lib/)
+
+# packages recommends
+set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "khiops")
+
+# packages posinst and triggers set(CPACK_DEBIAN_KNI_PACKAGE_CONTROL_EXTRA
+# ${PROJECT_SOURCE_DIR}/packaging/linux/debian/kni/triggers")
+
+# set(CPACK_DEBIAN_PACKAGE_DEBUG ON)
+set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)
+
+# ########### RPM Generator #############################
+
+set(CPACK_RPM_COMPONENT_INSTALL ON)
+set(CPACK_RPM_PACKAGE_LICENSE BSD-3-Clause)
+set(CPACK_RPM_PACKAGE_GROUP "Applications/Engineering")
+set(CPACK_RPM_PACKAGE_VENDOR Orange)
+
+set(CPACK_RPM_KHIOPS_PACKAGE_AUTOREQ ON)
+
+# Packages version set(CPACK_RPM_PACKAGE_VERSION ${PROJECT_VERSION})
+
+# packages names set(CPACK_RPM_PACKAGE_NAME khiops)
+
+# default file name e.g. khiops-10.0.0-1.x86_64.rpm
+set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
+
+# packages summary set(CPACK_RPM_PACKAGE_SUMMARY "Khiops tools")
+
+# packages post/postun install scripts
+# set(CPACK_RPM_KNI_POST_INSTALL_SCRIPT_FILE
+# "${PROJECT_SOURCE_DIR}/packaging/linux/redhat/kni.post")
+# set(CPACK_RPM_KNI_POSTUN_INSTALL_SCRIPT_FILE
+# "${PROJECT_SOURCE_DIR}/packaging/linux/redhat/kni.postun")
+
+include(CPack)
