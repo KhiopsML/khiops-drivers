@@ -1,0 +1,9 @@
+[submodule "azure/vcpkg"]
+	path = azure/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
+[submodule "gcs/vcpkg"]
+	path = gcs/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
+[submodule "s3/vcpkg"]
+	path = s3/vcpkg
+	url = https://github.com/microsoft/vcpkg.git
