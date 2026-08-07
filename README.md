@@ -7,7 +7,7 @@ This repository groups the Khiops cloud storage drivers for Azure, Google Cloud 
 - `azure/`: Azure driver sources, tests, scripts, and its dedicated `vcpkg` checkout
 - `gcs/`: GCS driver sources, tests, scripts, and its dedicated `vcpkg` checkout
 - `s3/`: S3 driver sources, tests, scripts, and its dedicated `vcpkg` checkout
-- `src/`: code common to all drivers
+- `src/`: code that is common to all drivers
 - `test/`: tests that all drivers must pass
 
 ## Build entry point
@@ -35,3 +35,13 @@ The root CMake project supports three build modes:
 - developer builds with a single driver selected via `KHIOPS_DRIVER`
 - pip packaging through `scikit-build-core`
 - unified DEB and RPM packaging through `KHIOPS_PACKAGE_ALL=ON`
+
+## Working on the drivers
+
+On GNU/Linux, you can `source ./dev_aliases.sh` to load handy aliases into your current shell session.
+The file [dev_aliases.sh](./dev_aliases.sh) contains aliases to:
+- generate the build system with CMake
+- build the drivers with CMake
+- execute tests with CTest.
+
+It will save you from having to declare environment variables and CMake/CTest command-line arguments.
