@@ -157,7 +157,10 @@ target_compile_options(
   PRIVATE $<$<CXX_COMPILER_ID:MSVC>:-Wall;/wd4582;/wd4583;/wd4625;/wd4626;/wd4710;/wd4711;/wd4820;/wd4868;/permissive->
   PRIVATE $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-pedantic>)
 
-option(BUILD_TESTS "Build test programs" OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  option(BUILD_TESTS "Build test programs" OFF)
+endif()
+
 if(BUILD_TESTS)
   add_library(khiopsdriver_file_azure_testing STATIC ${KhiopsDriverAzureSources} ${KhiopsDriverCommonSources})
 

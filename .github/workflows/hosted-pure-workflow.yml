@@ -82,13 +82,6 @@ jobs:
         with:
           skip-api-version-check: true
 
-      - name: Set Azure test prefixes
-        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
-        run: |
-          EMULATED_BLOB_ENDPOINT=$(echo '${{ steps.azuright.outputs.connstring }}' | tr ';' '\n' | grep -E '^BlobEndpoint=' | cut -d'=' -f2)
-          echo "STORAGE_DRIVER_TEST_URL_PREFIX=https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
-          echo "AZURE_EMULATED_BLOB_PREFIX=$EMULATED_BLOB_ENDPOINT/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
-
       - name: Populate Azurite with test data
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         run: |
@@ -121,17 +114,15 @@ jobs:
 
       - name: Test Azure release
         if: matrix.driver == 'azure'
-        run: ctest --preset "${{ matrix.rel_preset }}" --output-junit test_results.xml
+        run: ctest --preset azure-ninja-rel-blob --output-junit test_results.xml
         env:
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure
 
       - name: Test non-Azure release
         if: matrix.driver != 'azure'
         run: ctest --preset "${{ matrix.rel_preset }}" --output-junit test_results.xml
         env:
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: ${{ matrix.driver == 'gcs' && 'gs://data-test-khiops-driver-gcs' || 's3://diod-data-di-jupyterhub' }}
 
       - name: Upload test summary
         if: always()

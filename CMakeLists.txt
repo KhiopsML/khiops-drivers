@@ -10,6 +10,12 @@ project(khiops-drivers
   LANGUAGES CXX
   VERSION "${DRIVERS_VERSION_SHORT}")
 
+option(BUILD_TESTS "Build test programs" OFF)
+
+if(BUILD_TESTS)
+  enable_testing()
+endif()
+
 # ---------------------------------------------------------------------------
 # Helper: per-driver extra CMake args (Windows triplet, vcpkg toolchain…)
 # ---------------------------------------------------------------------------

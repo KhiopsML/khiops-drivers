@@ -44,4 +44,12 @@ The file [dev_aliases.sh](./dev_aliases.sh) contains aliases to:
 - build the drivers with CMake
 - execute tests with CTest.
 
-It will save you from having to declare environment variables and CMake/CTest command-line arguments.
+It will save you from typing CMake/CTest command-line arguments.
+
+If you wish to run the tests of the Azure driver using the local Azurite storage emulator, which does support blob storage but not file share storage, you will have to define the following environment variables:
+~~~ bash
+AZURE_EMULATED_STORAGE=true
+AZURE_STORAGE_CONNECTION_STRING='DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1;'
+STORAGE_DRIVER_TEST_URL_PREFIX=http://localhost:10000/devstoreaccount1/data-test-khiops-driver-azure
+~~~
+You may have to adapt the BlobEndpoint part of the `AZURE_STORAGE_CONNECTION_STRING` environment variable and also the `STORAGE_DRIVER_TEST_URL_PREFIX` environment variable if you configured Azurite with different values than its default configuration.

@@ -12,11 +12,6 @@ FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
-set(STORAGE_DRIVER_TEST_URL_PREFIX_FOR_TESTS "$ENV{STORAGE_DRIVER_TEST_URL_PREFIX}")
-if(STORAGE_DRIVER_TEST_URL_PREFIX_FOR_TESTS STREQUAL "")
-  set(STORAGE_DRIVER_TEST_URL_PREFIX_FOR_TESTS "gs://data-test-khiops-driver-gcs")
-endif()
-
 # Find dependencies
 find_package(Boost CONFIG REQUIRED)
 add_executable(gcs_test mocking_test.cpp nonmocking_test.cpp oauth2_token_manager_test.cpp test_drivermetadata.cpp
@@ -31,7 +26,7 @@ target_compile_options(
 # MSVC requires /bigobj to build in debug config
 target_compile_options(gcs_test PRIVATE $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/bigobj>)
 
-target_include_directories(gcs_test PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src)
+target_include_directories(gcs_test PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src ${${PROJECT_NAME}_SOURCE_DIR}/../src)
 
 target_link_libraries(gcs_test PRIVATE GTest::gtest GTest::gmock GTest::gmock_main google-cloud-cpp::storage
                                        khiopsdriver_file_gcs)
@@ -39,10 +34,10 @@ target_link_libraries(gcs_test PRIVATE GTest::gtest GTest::gmock GTest::gmock_ma
 gtest_discover_tests(
   gcs_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  PROPERTIES LABELS "unit" ENVIRONMENT "STORAGE_DRIVER_TEST_URL_PREFIX=${STORAGE_DRIVER_TEST_URL_PREFIX_FOR_TESTS}")
+  PROPERTIES LABELS "unit")
 
 add_executable(plugin_test plugin_test.cpp path_helper.cpp)
-target_include_directories(plugin_test PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src)
+target_include_directories(plugin_test PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src ${${PROJECT_NAME}_SOURCE_DIR}/../src)
 target_compile_options(
   plugin_test
   PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/W4;/wd4101;/wd4710;/wd4711;/wd4365;/wd5045>
@@ -63,4 +58,4 @@ endif()
 gtest_discover_tests(
   plugin_test
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-  PROPERTIES LABELS "unit" ENVIRONMENT "STORAGE_DRIVER_TEST_URL_PREFIX=${STORAGE_DRIVER_TEST_URL_PREFIX_FOR_TESTS}")
+  PROPERTIES LABELS "unit")

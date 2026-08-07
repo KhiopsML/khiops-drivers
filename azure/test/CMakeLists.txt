@@ -25,6 +25,8 @@ target_compile_options(
 # MSVC requires /bigobj to build in debug config
 target_compile_options(metadata_test PRIVATE $<$<AND:$<CONFIG:Debug>,$<CXX_COMPILER_ID:MSVC>>:/bigobj>)
 
+target_include_directories(metadata_test PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src ${${PROJECT_NAME}_SOURCE_DIR}/../src)
+
 if(WIN32)
   target_link_libraries(metadata_test PRIVATE GTest::gtest GTest::gmock GTest::gmock_main fmt::fmt
                                               khiopsdriver_file_azure bcrypt)

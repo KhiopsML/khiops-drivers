@@ -72,8 +72,6 @@ jobs:
         run: |
           EMULATED_BLOB_ENDPOINT=$(echo '${{ steps.azuright.outputs.connstring }}' | tr ';' '\n' | grep -E '^BlobEndpoint=' | cut -d'=' -f2)
           echo "STORAGE_DRIVER_TEST_URL_PREFIX_EMULATED_BLOB=$EMULATED_BLOB_ENDPOINT/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
-          echo "STORAGE_DRIVER_TEST_URL_PREFIX_CLOUD_BLOB=https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
-          echo "STORAGE_DRIVER_TEST_URL_PREFIX_CLOUD_FILE=https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
 
       - name: Populate Azurite with test data
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
@@ -118,25 +116,23 @@ jobs:
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
-          testPreset: '${{ matrix.dbg_preset }}'
+          testPreset: 'azure-ninja-dbg-blob'
         env:
           AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
           AZURE_DRIVER_LOGLEVEL: trace
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: '${{ env.STORAGE_DRIVER_TEST_URL_PREFIX_CLOUD_BLOB }}'
 
       - name: Test debug with Azure cloud file storage
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
-          testPreset: '${{ matrix.dbg_preset }}'
+          testPreset: 'azure-ninja-dbg-file'
         env:
           AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
           AZURE_DRIVER_LOGLEVEL: trace
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: '${{ env.STORAGE_DRIVER_TEST_URL_PREFIX_CLOUD_FILE }}'
 
       - name: Test debug
         if: matrix.driver != 'azure' && matrix.os == 'ubuntu-latest'
@@ -145,7 +141,6 @@ jobs:
           testPreset: '${{ matrix.dbg_preset }}'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: ${{ matrix.driver == 'gcs' && 'gs://data-test-khiops-driver-gcs' || 's3://diod-data-di-jupyterhub' }}
           GCS_DRIVER_LOGLEVEL: trace
           S3_DRIVER_LOGLEVEL: trace
 
@@ -171,23 +166,21 @@ jobs:
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
-          testPreset: '${{ matrix.rel_preset }}'
+          testPreset: 'azure-ninja-rel-blob'
           testPresetAdditionalArgs: '["--output-junit", "test_results_blob.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
           AZURE_DRIVER_LOGLEVEL: trace
-          STORAGE_DRIVER_TEST_URL_PREFIX: 'https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure'
 
       - name: Test release with Azure file storage
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
-          testPreset: '${{ matrix.rel_preset }}'
+          testPreset: 'azure-ninja-rel-file'
           testPresetAdditionalArgs: '["--output-junit", "test_results_file.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
           AZURE_DRIVER_LOGLEVEL: trace
-          STORAGE_DRIVER_TEST_URL_PREFIX: 'https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure'
 
       - name: Test release
         if: matrix.driver != 'azure'
@@ -197,7 +190,6 @@ jobs:
           testPresetAdditionalArgs: '["--output-junit", "test_results.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          STORAGE_DRIVER_TEST_URL_PREFIX: ${{ matrix.driver == 'gcs' && 'gs://data-test-khiops-driver-gcs' || 's3://diod-data-di-jupyterhub' }}
           GCS_DRIVER_LOGLEVEL: trace
           S3_DRIVER_LOGLEVEL: trace
 

@@ -66,12 +66,6 @@ if(BUILD_TESTS)
   enable_testing()
 endif()
 
-# Default integration-test URL prefix for this repository when not provided by CI/user.
-if(BUILD_TESTS AND NOT DEFINED ENV{STORAGE_DRIVER_TEST_URL_PREFIX})
-  set(ENV{STORAGE_DRIVER_TEST_URL_PREFIX} "gs://data-test-khiops-driver-gcs")
-  message(STATUS "Defaulting STORAGE_DRIVER_TEST_URL_PREFIX to gs://data-test-khiops-driver-gcs")
-endif()
-
 # Find dependencies
 find_package(google_cloud_cpp_storage CONFIG REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
@@ -170,7 +164,9 @@ target_compile_options(
   PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4582;/wd4583;/wd4625;/wd4626;/wd4710;/wd4711;/wd4820;/wd4868;/wd4365;/wd5045>
   PRIVATE $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-pedantic>)
 
-option(BUILD_TESTS "Build test programs" OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  option(BUILD_TESTS "Build test programs" OFF)
+endif()
 
 if(BUILD_TESTS)
   add_executable(KhiopsPluginTest src/khiopsplugintest.cpp)

@@ -158,8 +158,51 @@
       }
     },
     {
+      "name": "azure-ninja-dbg-blob",
+      "configurePreset": "azure-ninja-dbg",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "azure-ninja-rel-blob",
+      "configurePreset": "azure-ninja-rel",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "azure-ninja-dbg-file",
+      "configurePreset": "azure-ninja-dbg",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "azure-ninja-rel-file",
+      "configurePreset": "azure-ninja-rel",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
       "name": "gcs-ninja-dbg",
       "configurePreset": "gcs-ninja-dbg",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "gs://data-test-khiops-driver-gcs"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -167,6 +210,9 @@
     {
       "name": "gcs-ninja-rel",
       "configurePreset": "gcs-ninja-rel",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "gs://data-test-khiops-driver-gcs"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -174,6 +220,9 @@
     {
       "name": "s3-ninja-dbg",
       "configurePreset": "s3-ninja-dbg",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "s3://diod-data-di-jupyterhub"
+      },
       "output": {
         "outputOnFailure": true
       }
@@ -181,6 +230,9 @@
     {
       "name": "s3-ninja-rel",
       "configurePreset": "s3-ninja-rel",
+      "environment": {
+        "STORAGE_DRIVER_TEST_URL_PREFIX": "s3://diod-data-di-jupyterhub"
+      },
       "output": {
         "outputOnFailure": true
       }

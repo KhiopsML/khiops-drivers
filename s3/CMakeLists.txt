@@ -34,8 +34,14 @@ project(
 set(INSTALL_GTEST OFF)
 set(INSTALL_GMOCK OFF)
 
-include(GoogleTest)
-enable_testing()
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  option(BUILD_TESTS "Build test programs" OFF)
+endif()
+
+if(BUILD_TESTS)
+  include(GoogleTest)
+  enable_testing()
+endif()
 
 # Find dependencies
 find_package(fmt CONFIG REQUIRED)
@@ -125,8 +131,6 @@ target_compile_options(
   PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/wd4582;/wd4583;/wd4625;/wd4626;/wd4710;/wd4711;/wd4820;/wd4868;/wd4365;/wd5045>
   PRIVATE $<$<CXX_COMPILER_ID:AppleClang,Clang,GNU>:-Wall;-Wextra;-pedantic>)
 
-option(BUILD_TESTS "Build test programs" OFF)
-
 if(BUILD_TESTS)
   add_executable(KhiopsPluginTest src/khiopsplugintest.cpp)
   target_link_libraries(KhiopsPluginTest PRIVATE fmt::fmt ${CMAKE_DL_LIBS})
@@ -135,9 +139,6 @@ if(BUILD_TESTS)
 
   add_subdirectory(test)
   set(storage_driver_target_name khiopsdriver_file_s3)
-  if(NOT DEFINED ENV{STORAGE_DRIVER_TEST_URL_PREFIX})
-    set(ENV{STORAGE_DRIVER_TEST_URL_PREFIX} "s3://diod-data-di-jupyterhub")
-  endif()
   set(STORAGE_DRIVER_LSAN_SUPPRESSIONS_FILE "${PROJECT_SOURCE_DIR}/lsan_suppressions.txt")
   add_subdirectory("${PROJECT_SOURCE_DIR}/../test" "${CMAKE_CURRENT_BINARY_DIR}/shared-test")
 endif(BUILD_TESTS)
