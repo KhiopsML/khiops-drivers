@@ -43,6 +43,9 @@ jobs:
       AWS_ENDPOINT_URL: ${{ vars.AWS_ENDPOINT_URL }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AZURE_DRIVER_LOGLEVEL: trace
+      GCS_DRIVER_LOGLEVEL: trace
+      S3_DRIVER_LOGLEVEL: trace
 
     steps:
       - uses: actions/checkout@v7
@@ -109,7 +112,6 @@ jobs:
         env:
           AZURE_EMULATED_STORAGE: 'true'
           AZURE_STORAGE_CONNECTION_STRING: '${{ steps.azuright.outputs.connstring }}'
-          AZURE_DRIVER_LOGLEVEL: trace
           STORAGE_DRIVER_TEST_URL_PREFIX: '${{ env.STORAGE_DRIVER_TEST_URL_PREFIX_EMULATED_BLOB }}'
 
       - name: Test debug with Azure cloud blob storage
@@ -120,7 +122,6 @@ jobs:
         env:
           AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
-          AZURE_DRIVER_LOGLEVEL: trace
           CTEST_PARALLEL_LEVEL: ''
 
       - name: Test debug with Azure cloud file storage
@@ -131,7 +132,6 @@ jobs:
         env:
           AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
-          AZURE_DRIVER_LOGLEVEL: trace
           CTEST_PARALLEL_LEVEL: ''
 
       - name: Test debug
@@ -141,8 +141,6 @@ jobs:
           testPreset: '${{ matrix.dbg_preset }}'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          GCS_DRIVER_LOGLEVEL: trace
-          S3_DRIVER_LOGLEVEL: trace
 
       - name: Build release
         uses: lukka/run-cmake@v10
@@ -170,7 +168,6 @@ jobs:
           testPresetAdditionalArgs: '["--output-junit", "test_results_blob.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          AZURE_DRIVER_LOGLEVEL: trace
 
       - name: Test release with Azure file storage
         if: matrix.driver == 'azure'
@@ -180,7 +177,6 @@ jobs:
           testPresetAdditionalArgs: '["--output-junit", "test_results_file.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          AZURE_DRIVER_LOGLEVEL: trace
 
       - name: Test release
         if: matrix.driver != 'azure'
@@ -190,8 +186,6 @@ jobs:
           testPresetAdditionalArgs: '["--output-junit", "test_results.xml"]'
         env:
           CTEST_PARALLEL_LEVEL: ''
-          GCS_DRIVER_LOGLEVEL: trace
-          S3_DRIVER_LOGLEVEL: trace
 
       - name: Upload Azure test summaries
         if: matrix.driver == 'azure' && always()
