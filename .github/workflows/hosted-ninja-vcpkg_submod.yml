@@ -62,6 +62,7 @@ jobs:
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: '${{ matrix.driver }}/vcpkg.json'
+          vcpkgDirectory: '${{ matrix.driver }}/vcpkg'
 
       - name: Install Azurite
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
