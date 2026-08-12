@@ -2,6 +2,30 @@
 # Routine workflow executed when one pushes to the main branch or creates a PR on that branch.
 # Can also be executed manually.
 # This workflow checks that all drivers compile, then runs the GoogleTest test suites.
+#
+# The following is an overview of the steps executed by this workflow:
+#
+#                 +----------------------------------------------------+---------------------------------------------------+
+#                 | Azure driver                                       | S3 and GCS drivers                                |
+#   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
+#   | Step number | Ubuntu                   | macOS and Windows       | Ubuntu                  | macOS and Windows       |
+#   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
+#   |           1 | Basic setup              | Basic setup             | Basic setup             | Basic setup             |
+#   |           2 | Build Debug              | /                       | Build Debug             | /                       |
+#   |           3 | Build Release            | Build Release           | Build Release           | Build Release           |
+#   |           4 | Test Debug Emulated Blob | /                       | /                       | /                       |
+#   |           5 | Test Debug Cloud Blob    | /                       | Test Debug Cloud Blob   | /                       |
+#   |           6 | Test Debug Cloud File    | /                       | /                       | /                       |
+#   |           7 | Test Release Cloud Blob  | Test Release Cloud Blob | Test Release Cloud Blob | Test Release Cloud Blob |
+#   |           8 | Test Release Cloud File  | Test Release Cloud File | /                       | /                       |
+#   |           9 | Upload test results      | Upload test results     | Upload test results     | Upload test results     |
+#   |          10 | Upload libraries         | Upload libraries        | Upload libraries        | Upload libraries        |
+#   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
+#
+# Notes:
+#   - The step number does not match the number of the actuel step in the workflow since this table is only a summary.
+#   - Debug builds on Ubuntu are used to run tests with sanitizers enabled.
+#   - Tests only write their results for Release configuration, so the only test results we can see in the reports are from tests executed in Release configuration.
 
 name: hosted-ninja-vcpkg_submod
 on:
@@ -177,8 +201,8 @@ jobs:
         if: matrix.driver == 'azure' && github.ref_type == 'tag'
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
-      # [Azure] Test in release configuration with blob storage.
-      - name: Test in release config with blob storage [Azure]
+      # [Azure] Test in release configuration with cloud blob storage.
+      - name: Test in release config with cloud blob storage [Azure]
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
@@ -187,8 +211,8 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      # [Azure] Test in release configuration with file storage.
-      - name: Test in release config with file storage [Azure]
+      # [Azure] Test in release configuration with cloud file storage.
+      - name: Test in release config with cloud file storage [Azure]
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
