@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  job:
+  build-and-test:
     name: ${{ matrix.driver }}-${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
