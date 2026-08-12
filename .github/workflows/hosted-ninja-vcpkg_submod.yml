@@ -21,21 +21,21 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { driver: azure, os: ubuntu-latest, triplet: x64-linux, dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
-          - { driver: azure, os: macos-latest, triplet: arm64-osx, dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
-          - { driver: azure, os: macos-15-intel, triplet: x64-osx, dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
-          - { driver: azure, os: macos-14, triplet: arm64-osx, dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: ubuntu-latest , triplet: x64-linux         , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-latest  , triplet: arm64-osx         , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-15-intel, triplet: x64-osx           , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
+          - { driver: azure, os: macos-14      , triplet: arm64-osx         , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
           - { driver: azure, os: windows-latest, triplet: x64-windows-static, dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
-          - { driver: gcs, os: ubuntu-latest, triplet: x64-linux, dbg_preset: gcs-ninja-dbg, rel_preset: gcs-ninja-rel }
-          - { driver: gcs, os: macos-latest, triplet: arm64-osx, dbg_preset: gcs-ninja-dbg, rel_preset: gcs-ninja-rel }
-          - { driver: gcs, os: macos-15-intel, triplet: x64-osx, dbg_preset: gcs-ninja-dbg, rel_preset: gcs-ninja-rel }
-          - { driver: gcs, os: macos-14, triplet: arm64-osx, dbg_preset: gcs-ninja-dbg, rel_preset: gcs-ninja-rel }
-          - { driver: gcs, os: windows-latest, triplet: x64-windows-static, dbg_preset: gcs-ninja-dbg, rel_preset: gcs-ninja-rel }
-          - { driver: s3, os: ubuntu-latest, triplet: x64-linux, dbg_preset: s3-ninja-dbg, rel_preset: s3-ninja-rel }
-          - { driver: s3, os: macos-latest, triplet: arm64-osx, dbg_preset: s3-ninja-dbg, rel_preset: s3-ninja-rel }
-          - { driver: s3, os: macos-15-intel, triplet: x64-osx, dbg_preset: s3-ninja-dbg, rel_preset: s3-ninja-rel }
-          - { driver: s3, os: macos-14, triplet: arm64-osx, dbg_preset: s3-ninja-dbg, rel_preset: s3-ninja-rel }
-          - { driver: s3, os: windows-latest, triplet: x64-windows, dbg_preset: s3-ninja-dbg, rel_preset: s3-ninja-rel }
+          - { driver: gcs  , os: ubuntu-latest , triplet: x64-linux         , dbg_preset: gcs-ninja-dbg  , rel_preset: gcs-ninja-rel   }
+          - { driver: gcs  , os: macos-latest  , triplet: arm64-osx         , dbg_preset: gcs-ninja-dbg  , rel_preset: gcs-ninja-rel   }
+          - { driver: gcs  , os: macos-15-intel, triplet: x64-osx           , dbg_preset: gcs-ninja-dbg  , rel_preset: gcs-ninja-rel   }
+          - { driver: gcs  , os: macos-14      , triplet: arm64-osx         , dbg_preset: gcs-ninja-dbg  , rel_preset: gcs-ninja-rel   }
+          - { driver: gcs  , os: windows-latest, triplet: x64-windows-static, dbg_preset: gcs-ninja-dbg  , rel_preset: gcs-ninja-rel   }
+          - { driver: s3   , os: ubuntu-latest , triplet: x64-linux         , dbg_preset: s3-ninja-dbg   , rel_preset: s3-ninja-rel    }
+          - { driver: s3   , os: macos-latest  , triplet: arm64-osx         , dbg_preset: s3-ninja-dbg   , rel_preset: s3-ninja-rel    }
+          - { driver: s3   , os: macos-15-intel, triplet: x64-osx           , dbg_preset: s3-ninja-dbg   , rel_preset: s3-ninja-rel    }
+          - { driver: s3   , os: macos-14      , triplet: arm64-osx         , dbg_preset: s3-ninja-dbg   , rel_preset: s3-ninja-rel    }
+          - { driver: s3   , os: windows-latest, triplet: x64-windows       , dbg_preset: s3-ninja-dbg   , rel_preset: s3-ninja-rel    }
     defaults:
       run:
         shell: bash
