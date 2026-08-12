@@ -40,13 +40,17 @@ jobs:
       run:
         shell: bash
     permissions:
+      # These permissions are needed to authenticate to cloud services.
       contents: read
       id-token: write
     env:
+      # Build the correct flavour of the dependencies: architecture, OS, dynamic/static.
       VCPKG_DEFAULT_TRIPLET: ${{ matrix.triplet }}
+      # The three environment variables below are used to authenticate to S3 cloud services.
       AWS_ENDPOINT_URL: ${{ vars.AWS_ENDPOINT_URL }}
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      # Allow the drivers to log everything. CTest will then only show the logs of a test case if it failed.
       AZURE_DRIVER_LOGLEVEL: trace
       GCS_DRIVER_LOGLEVEL: trace
       S3_DRIVER_LOGLEVEL: trace
