@@ -1,4 +1,8 @@
 ---
+# Routine workflow executed when one pushes to the main branch or creates a PR on that branch.
+# Can also be executed manually (workflow_dispatch).
+# This workflow checks that all drivers compile, then runs the GoogleTest test suites.
+
 name: hosted-ninja-vcpkg_submod
 on:
   push:
