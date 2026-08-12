@@ -1,6 +1,6 @@
 ---
 # Routine workflow executed when one pushes to the main branch or creates a PR on that branch.
-# Can also be executed manually (workflow_dispatch).
+# Can also be executed manually.
 # This workflow checks that all drivers compile, then runs the GoogleTest test suites.
 
 name: hosted-ninja-vcpkg_submod
@@ -11,7 +11,7 @@ on:
   pull_request:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch:  # Allow manual execution.
 
 jobs:
   build-and-test:
@@ -21,6 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # We use the x64-windows-static triplet for Azure and GCS drivers only because it does not work for the S3 driver.
           - { driver: azure, os: ubuntu-latest , triplet: x64-linux         , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
           - { driver: azure, os: macos-latest  , triplet: arm64-osx         , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
           - { driver: azure, os: macos-15-intel, triplet: x64-osx           , dbg_preset: azure-ninja-dbg, rel_preset: azure-ninja-rel }
@@ -40,7 +41,7 @@ jobs:
       run:
         shell: bash
     permissions:
-      # These permissions are needed to authenticate to cloud services.
+      # These permissions are, at least, needed to authenticate to cloud services.
       contents: read
       id-token: write
     env:
@@ -54,58 +55,36 @@ jobs:
       AZURE_DRIVER_LOGLEVEL: trace
       GCS_DRIVER_LOGLEVEL: trace
       S3_DRIVER_LOGLEVEL: trace
+      # TODO: We should also specify the *_DRIVER_LOGFILE environment variables.
 
     steps:
+
+      # === DRIVER-AGNOSTIC SECTION ===
+
+      # Install CMake.
+      - name: Install CMake
+        uses: lukka/get-cmake@v3.30.3
+
+      # Fetch the sources.
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: recursive  # Fetch the vcpkg submodule of each driver.
           fetch-depth: 0
 
-      - uses: ./.github/actions/fix-win-azure-config
-        if: matrix.driver == 'azure'
-
-      - uses: lukka/get-cmake@v3.30.3
-
+      # Setup vcpkg.
       - name: Restore from cache and setup vcpkg executable and data files
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: '${{ matrix.driver }}/vcpkg.json'
           vcpkgDirectory: '${{ matrix.driver }}/vcpkg'
 
-      - name: Install Azurite
-        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
-        id: azuright
-        uses: sgouache/azuright@v1.2
-        with:
-          skip-api-version-check: true
-
-      - name: Set Azure test prefixes
-        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
-        run: |
-          EMULATED_BLOB_ENDPOINT=$(echo '${{ steps.azuright.outputs.connstring }}' | tr ';' '\n' | grep -E '^BlobEndpoint=' | cut -d'=' -f2)
-          echo "STORAGE_DRIVER_TEST_URL_PREFIX_EMULATED_BLOB=$EMULATED_BLOB_ENDPOINT/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
-
-      - name: Populate Azurite with test data
-        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-          export AZURE_STORAGE_CONNECTION_STRING='${{ steps.azuright.outputs.connstring }}'
-          az storage container create -n data-test-khiops-driver-azure --connection-string "${{ steps.azuright.outputs.connstring }}"
-          az storage blob upload-batch --destination data-test-khiops-driver-azure/khiops_data --source "$PWD/azure/khiops_data" --connection-string "${{ steps.azuright.outputs.connstring }}"
-
-      - uses: google-github-actions/auth@v2
-        if: matrix.driver == 'gcs'
-        with:
-          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
-          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
-
-      - name: Install coverage tools
+      # [Ubuntu] Install coverage tools.
+      - name: Install coverage tools [Ubuntu]
         if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y lcov gcovr
+        run: sudo apt-get update && sudo apt-get install -y lcov gcovr
 
-      - name: Build debug
+      # [Ubuntu] Build in debug configuration for later test execution with sanitizers.
+      - name: Build in debug config [Ubuntu]
         if: matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
@@ -113,7 +92,48 @@ jobs:
           configurePresetAdditionalArgs: '["-DBUILD_TESTS=ON"]'
           buildPreset: '${{ matrix.dbg_preset }}'
 
-      - name: Test debug with emulated Azure blob storage
+      # Build in release configuration.
+      - name: Build in release config
+        uses: lukka/run-cmake@v10
+        with:
+          configurePreset: '${{ matrix.rel_preset }}'
+          configurePresetAdditionalArgs: '["-DBUILD_TESTS=ON"]'
+          buildPreset: '${{ matrix.rel_preset }}'
+
+
+      # === AZURE-SPECIFIC SECTION ===
+
+      # [Azure] [Windows] Fix Azure configuration path for jobs using both Bash and PowerShell.
+      - name: Fix Azure config path [Azure] [Windows]
+        uses: ./.github/actions/fix-win-azure-config
+        if: matrix.driver == 'azure' && matrix.os == 'windows-latest'
+
+      # [Azure] [Ubuntu] Install storage service emulator (Azurite).
+      - name: Install storage service emulator [Azure] [Ubuntu]
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        id: azuright
+        uses: sgouache/azuright@v1.2
+        with:
+          skip-api-version-check: true
+
+      # [Azure] [Ubuntu] Populate emulated storage with test data.
+      - name: Populate emulated storage with test data [Azure] [Ubuntu]
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        run: |
+          curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+          export AZURE_STORAGE_CONNECTION_STRING='${{ steps.azuright.outputs.connstring }}'
+          az storage container create -n data-test-khiops-driver-azure --connection-string "${{ steps.azuright.outputs.connstring }}"
+          az storage blob upload-batch --destination data-test-khiops-driver-azure/khiops_data --source "$PWD/azure/khiops_data" --connection-string "${{ steps.azuright.outputs.connstring }}"
+
+      # [Azure] [Ubuntu] Compute emulated storage test URL prefix.
+      - name: Compute emulated storage test URL prefix [Azure] [Ubuntu]
+        if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
+        run: |
+          EMULATED_BLOB_ENDPOINT=$(echo '${{ steps.azuright.outputs.connstring }}' | tr ';' '\n' | grep -E '^BlobEndpoint=' | cut -d'=' -f2)
+          echo "STORAGE_DRIVER_TEST_URL_PREFIX_EMULATED_BLOB=$EMULATED_BLOB_ENDPOINT/data-test-khiops-driver-azure" >> "$GITHUB_ENV"
+
+      # [Azure] [Ubuntu] Test in debug configuration with emulated blob storage.
+      - name: Test in debug config with emulated blob storage [Azure] [Ubuntu]
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
@@ -123,53 +143,42 @@ jobs:
           AZURE_STORAGE_CONNECTION_STRING: '${{ steps.azuright.outputs.connstring }}'
           STORAGE_DRIVER_TEST_URL_PREFIX: '${{ env.STORAGE_DRIVER_TEST_URL_PREFIX_EMULATED_BLOB }}'
 
-      - name: Test debug with Azure cloud blob storage
+      # [Azure] [Ubuntu] Test in debug configuration with cloud blob storage.
+      - name: Test in debug config with cloud blob storage [Azure] [Ubuntu]
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
           testPreset: 'azure-ninja-dbg-blob'
         env:
-          AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
           CTEST_PARALLEL_LEVEL: ''
 
-      - name: Test debug with Azure cloud file storage
+      # [Azure] [Ubuntu] Test in debug configuration with cloud file storage.
+      - name: Test in debug config with cloud file storage [Azure] [Ubuntu]
         if: matrix.driver == 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
           testPreset: 'azure-ninja-dbg-file'
         env:
-          AZURE_EMULATED_STORAGE: 'false'
           AZURE_STORAGE_CONNECTION_STRING: '${{ secrets.AZURE_CONNECTION_STRING }}'
           CTEST_PARALLEL_LEVEL: ''
 
-      - name: Test debug
-        if: matrix.driver != 'azure' && matrix.os == 'ubuntu-latest'
-        uses: lukka/run-cmake@v10
-        with:
-          testPreset: '${{ matrix.dbg_preset }}'
-        env:
-          CTEST_PARALLEL_LEVEL: ''
-
-      - name: Build release
-        uses: lukka/run-cmake@v10
-        with:
-          configurePreset: '${{ matrix.rel_preset }}'
-          configurePresetAdditionalArgs: '["-DBUILD_TESTS=ON"]'
-          buildPreset: '${{ matrix.rel_preset }}'
-
-      - uses: azure/login@v2.3.0
+      # [Azure] Not on a tag => authenticate to cloud services using Workload Identity Federation.
+      - name: Authenticate to cloud services using WIF [Azure]
+        uses: azure/login@v2.3.0
         if: matrix.driver == 'azure' && github.ref_type != 'tag'
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Use Azure connection string on tags
+      # [Azure] On a tag => authenticate to cloud services using a connection string environment variable.
+      - name: Authenticate to cloud services using connection string [Azure]
         if: matrix.driver == 'azure' && github.ref_type == 'tag'
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
-      - name: Test release with Azure blob storage
+      # [Azure] Test in release configuration with blob storage.
+      - name: Test in release config with blob storage [Azure]
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
@@ -178,7 +187,8 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      - name: Test release with Azure file storage
+      # [Azure] Test in release configuration with file storage.
+      - name: Test in release config with file storage [Azure]
         if: matrix.driver == 'azure'
         uses: lukka/run-cmake@v10
         with:
@@ -187,7 +197,40 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      - name: Test release
+      # [Azure] Upload test results.
+      - name: Upload test results [Azure]
+        if: matrix.driver == 'azure' && always()
+        uses: test-summary/action@v2
+        with:
+          paths: |
+            ${{ github.workspace }}/build/azure/${{ matrix.rel_preset }}/test_results_blob.xml
+            ${{ github.workspace }}/build/azure/${{ matrix.rel_preset }}/test_results_file.xml
+
+
+      # === GCS-SPECIFIC SECTION ===
+
+      # [GCS] Authenticate to cloud services.
+      - name: Authenticate to cloud services [GCS]
+        uses: google-github-actions/auth@v2
+        if: matrix.driver == 'gcs'
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+
+      # === S3/GCS-SPECIFIC SECTION ===
+
+      # [S3/GCS] [Ubuntu] Test in debug configuration with cloud blob storage.
+      - name: Test in debug config [S3/GCS] [Ubuntu]
+        if: matrix.driver != 'azure' && matrix.os == 'ubuntu-latest'
+        uses: lukka/run-cmake@v10
+        with:
+          testPreset: '${{ matrix.dbg_preset }}'
+        env:
+          CTEST_PARALLEL_LEVEL: ''
+
+      # [S3/GCS] Test in release configuration with cloud blob storage.
+      - name: Test in release config [S3/GCS]
         if: matrix.driver != 'azure'
         uses: lukka/run-cmake@v10
         with:
@@ -196,20 +239,17 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      - name: Upload Azure test summaries
-        if: matrix.driver == 'azure' && always()
-        uses: test-summary/action@v2
-        with:
-          paths: |
-            ${{ github.workspace }}/build/azure/${{ matrix.rel_preset }}/test_results_blob.xml
-            ${{ github.workspace }}/build/azure/${{ matrix.rel_preset }}/test_results_file.xml
-
-      - name: Upload test summary
+      # [S3/GCS] Upload test results.
+      - name: Upload test results [S3/GCS]
         if: matrix.driver != 'azure' && always()
         uses: test-summary/action@v2
         with:
           paths: ${{ github.workspace }}/build/${{ matrix.driver }}/${{ matrix.rel_preset }}/test_results.xml
 
+
+      # === DRIVER-AGNOSTIC SECTION ===
+
+      # Upload built libraries.
       - name: Upload built libraries
         uses: actions/upload-artifact@v7
         with:
