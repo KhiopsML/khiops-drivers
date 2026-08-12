@@ -6,7 +6,7 @@
 # The following is an overview of the steps executed by this workflow:
 #
 #                 +----------------------------------------------------+---------------------------------------------------+
-#                 | Azure driver                                       | S3 and GCS drivers                                |
+#                 | Azure driver                                       | GCS and S3 drivers                                |
 #   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
 #   | Step number | Ubuntu                   | macOS and Windows       | Ubuntu                  | macOS and Windows       |
 #   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
@@ -23,9 +23,13 @@
 #   +-------------+--------------------------+-------------------------+-------------------------+-------------------------+
 #
 # Notes:
-#   - The step number does not match the number of the actuel step in the workflow since this table is only a summary.
+#   - The step number does not match the number of the actual step in the workflow since this table is only a summary.
 #   - Debug builds on Ubuntu are used to run tests with sanitizers enabled.
 #   - Tests only write their results for Release configuration, so the only test results we can see in the reports are from tests executed in Release configuration.
+#   - About the Azure driver's authentication methods used in tests:
+#     - Debug-configuration tests authenticate to the emulated and cloud services using a connection string environment variable.
+#     - If not on a tag, Release-configuration tests authenticate to the cloud services using Workload Identity Federation.
+#     - If on a tag, Release-configuration tests authenticate to the cloud services using a connection string environment variable.
 
 name: hosted-ninja-vcpkg_submod
 on:
@@ -242,10 +246,10 @@ jobs:
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
 
 
-      # === S3/GCS-SPECIFIC SECTION ===
+      # === GCS/S3-SPECIFIC SECTION ===
 
-      # [S3/GCS] [Ubuntu] Test in debug configuration with cloud blob storage.
-      - name: Test in debug config [S3/GCS] [Ubuntu]
+      # [GCS/S3] [Ubuntu] Test in debug configuration with cloud blob storage.
+      - name: Test in debug config [GCS/S3] [Ubuntu]
         if: matrix.driver != 'azure' && matrix.os == 'ubuntu-latest'
         uses: lukka/run-cmake@v10
         with:
@@ -253,8 +257,8 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      # [S3/GCS] Test in release configuration with cloud blob storage.
-      - name: Test in release config [S3/GCS]
+      # [GCS/S3] Test in release configuration with cloud blob storage.
+      - name: Test in release config [GCS/S3]
         if: matrix.driver != 'azure'
         uses: lukka/run-cmake@v10
         with:
@@ -263,8 +267,8 @@ jobs:
         env:
           CTEST_PARALLEL_LEVEL: ''
 
-      # [S3/GCS] Upload test results.
-      - name: Upload test results [S3/GCS]
+      # [GCS/S3] Upload test results.
+      - name: Upload test results [GCS/S3]
         if: matrix.driver != 'azure' && always()
         uses: test-summary/action@v2
         with:
