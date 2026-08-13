@@ -151,6 +151,14 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
+      - name: Fetch GitHub actions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/actions/test-khiops-install
+            .github/actions/test-khiops-on-iris
+          sparse-checkout-cone-mode: false
+
       - name: Set env vars with distro info, arch and MPI impl
         run: |
           source /etc/os-release
@@ -361,6 +369,14 @@ jobs:
       packages: read
       id-token: write
     steps:
+      - name: Fetch GitHub actions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/actions/test-khiops-install
+            .github/actions/test-khiops-on-iris
+          sparse-checkout-cone-mode: false
+
       - name: Set env vars with distro info, arch and MPI impl
         run: |
           source /etc/os-release
@@ -545,6 +561,14 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - name: Fetch GitHub actions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/actions/test-khiops-install
+            .github/actions/test-khiops-on-iris
+          sparse-checkout-cone-mode: false
+
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
