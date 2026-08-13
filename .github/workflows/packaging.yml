@@ -71,7 +71,10 @@ jobs:
       image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
     steps:
       - name: Install tools
-        run: apt-get update && apt-get install -y --no-install-recommends build-essential coreutils debhelper git ca-certificates curl ninja-build zip pkg-config
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends build-essential coreutils debhelper git ca-certificates curl
+          apt-get install -y ninja-build zip pkg-config unzip tar
         env:
           DEBIAN_FRONTEND: noninteractive
 
@@ -284,7 +287,7 @@ jobs:
       - name: Install packages
         run: |
           dnf upgrade -y
-          dnf install -y gcc-c++ rpm-build git perl curl zip
+          dnf install -y gcc-c++ rpm-build git perl curl zip unzip tar
           dnf install -y 'dnf-command(config-manager)'
           dnf config-manager --set-enabled devel
           dnf install -y cmake ninja-build
