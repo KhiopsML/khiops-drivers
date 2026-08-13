@@ -1,14 +1,6 @@
 ---
 name: Test Khiops Installation
 description: Test Khiops detection of installed drivers
-inputs:
-  expected-drivers:
-    description: Driver display names expected in `khiops -s`
-    required: false
-    default: |
-      Azure driver
-      GCS driver
-      S3 driver
 runs:
   using: composite
   steps:
@@ -20,7 +12,10 @@ runs:
         OMPI_MCA_rmaps_base_oversubscribe: true
         PRTE_MCA_rmaps_default_mapping_policy: :oversubscribe
         KHIOPS_MPI_VERBOSE: true
-        EXPECTED_DRIVERS: ${{ inputs.expected-drivers }}
+        EXPECTED_DRIVERS: |
+          Azure driver
+          GCS driver
+          S3 driver
       run: |
         set -euo pipefail
 
