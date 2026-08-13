@@ -47,8 +47,6 @@ if(DEFINED SKBUILD)
     -DSKBUILD=1
     "-DSKBUILD_DATA_DIR=${SKBUILD_DATA_DIR}"
     "-DSKBUILD_SCRIPTS_DIR=${SKBUILD_SCRIPTS_DIR}"
-    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
-    "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
   )
 
   foreach(_driver azure gcs s3)
@@ -81,8 +79,6 @@ elseif(KHIOPS_PACKAGE_ALL)
   set(_common_args
     -DCMAKE_BUILD_TYPE=Release
     "-DCMAKE_INSTALL_PREFIX=${_staging}"
-    "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}"
-    "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}"
   )
 
   foreach(_driver azure gcs s3)
