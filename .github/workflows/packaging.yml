@@ -284,10 +284,10 @@ jobs:
       - name: Install packages
         run: |
           dnf upgrade -y
-          dnf install -y gcc-c++ rpm-build git perl curl ninja-build zip
+          dnf install -y gcc-c++ rpm-build git perl curl zip
           dnf install -y 'dnf-command(config-manager)'
           dnf config-manager --set-enabled devel
-          dnf install -y cmake
+          dnf install -y cmake ninja-build
           dnf config-manager --set-disabled devel
 
       - uses: actions/checkout@v7
