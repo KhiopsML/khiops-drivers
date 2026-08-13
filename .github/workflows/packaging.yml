@@ -1,18 +1,20 @@
 ---
+# Workflow triggered manually to produce packages of different formats that enable shipping all drivers as a single file.
+
 name: packaging
 on:
   workflow_dispatch:
     inputs:
       package_format:
-        description: Package format to build and test
+        description: Package format to build, test and release
         type: choice
         default: all
         options:
           - all
-          - debian
+          - deb
           - rpm
           - pip
-          - tgz
+          # - tgz  # Disabled, see at the end of the file.
       python_repository:
         description: Python repository used for publication
         type: choice
@@ -21,23 +23,22 @@ on:
           - none
           - testpypi
           - pypi
-  push:
-    tags:
-      - '*'
 
 defaults:
   run:
     shell: bash
 
 env:
-  KHIOPS_CORE_RELEASE: 11.0.0-rc.2
+  KHIOPS_CORE_RELEASE: 11.0.1  # Khiops Core version used in deb and rpm testing jobs (pip testing job always installs the latest)
+  # The three env vars below are used to authenticate to S3 cloud services.
   AWS_ENDPOINT_URL: ${{ vars.AWS_ENDPOINT_URL }}
   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  build-debian:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'debian'))
+  # Produce the deb package.
+  build-deb:
+    if: inputs.package_format == 'all' || inputs.package_format == 'deb'
     runs-on: ${{ matrix.setup.os }}
     strategy:
       fail-fast: false
@@ -49,27 +50,26 @@ jobs:
     container:
       image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
     steps:
-      - name: Install packages
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y --no-install-recommends build-essential coreutils debhelper git ca-certificates curl ninja-build zip pkg-config
+      - name: Install tools
+        run: apt-get update && apt-get install -y --no-install-recommends build-essential coreutils debhelper git ca-certificates curl ninja-build zip pkg-config
+        env:
+          DEBIAN_FRONTEND: noninteractive
 
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: recursive  # Needed to get the vcpkg submodule of each driver.
           fetch-depth: 0
 
-      - name: Configure CMake
+      - name: Generate build system
         run: cmake --preset all-ninja-rel
 
-      - name: Build unified package tree
+      - name: Build all drivers
         run: cmake --build --preset all-ninja-rel
 
-      - name: Build package with CPack
+      - name: Create package with CPack
         run: (cd build/all/ninja-rel && cpack -G DEB)
 
-      - name: Set environment variables
+      - name: Set env vars with distro info and arch
         run: |
           source /etc/os-release
           echo "ID=$ID" >> "$GITHUB_ENV"
@@ -77,22 +77,24 @@ jobs:
           echo "ARCH=$(arch)" >> "$GITHUB_ENV"
           echo "BUILDARCH=$(dpkg --print-architecture)" >> "$GITHUB_ENV"
 
-      - name: Rename packages to include distro codename
+      - name: Rename the drivers' package to include distro codename
         run: |
           cd build/all/ninja-rel/packages
           for filename in *.deb; do
             mv -v "$filename" "${filename%_*}-${VERSION_CODENAME}.${filename##*_}"
           done
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the drivers' package as artifact
+        uses: actions/upload-artifact@v7
         with:
           name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
           path: build/all/ninja-rel/packages/*.deb
           if-no-files-found: error
 
-  test-debian:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'debian'))
-    needs: build-debian
+  # Test the deb package.
+  test-deb:
+    if: inputs.package_format == 'all' || inputs.package_format == 'deb'
+    needs: build-deb
     runs-on: ${{ matrix.setup.os }}
     strategy:
       fail-fast: false
@@ -110,11 +112,7 @@ jobs:
     env:
       DEBIAN_FRONTEND: noninteractive
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Set environment variables
+      - name: Set env vars with distro info, arch and MPI impl
         run: |
           source /etc/os-release
           echo "ID=$ID" >> "$GITHUB_ENV"
@@ -124,81 +122,101 @@ jobs:
           echo "MPI_IMPLEMENTATION=openmpi" >> "$GITHUB_ENV"
 
       - name: Install curl and Azure CLI prerequisites
-        run: |
-          apt-get update
-          apt-get install -y curl gnupg lsb-release
+        run: apt-get update && apt-get install -y curl gnupg lsb-release
 
-      - name: Download and install Khiops Core
+      - name: Install Khiops Core
         run: |
           curl -L "https://github.com/KhiopsML/khiops/releases/download/${KHIOPS_CORE_RELEASE}/khiops-core-${MPI_IMPLEMENTATION}_${KHIOPS_CORE_RELEASE}-1-${VERSION_CODENAME}.${BUILDARCH}.deb" --output ./khiops-core.deb
           dpkg -i ./khiops-core.deb || true
           apt-get -f install -y
 
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
           path: artifacts
 
-      - name: Install unified drivers package
+      - name: Install the drivers' package
         run: dpkg -i ./artifacts/khiops-drivers*.deb || apt-get -f install -y
 
-      - uses: ./.github/actions/test-khiops-install
-
-      - uses: google-github-actions/auth@v2
-        with:
-          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
-          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+      - name: Check Khiops detects drivers
+        uses: ./.github/actions/test-khiops-install
 
       - name: Install Azure CLI
-        run: |
-          curl -sL https://aka.ms/InstallAzureCLIDeb | bash
-
-      - uses: azure/login@v2.3.0
         if: github.ref_type != 'tag'
+        run: curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+
+      - name: Authenticate to Azure cloud services through WIF
+        if: github.ref_type != 'tag'
+        uses: azure/login@v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Use Azure connection string on tags
+      - name: Authenticate to Azure cloud services through connection string env var
         if: github.ref_type == 'tag'
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Authenticate to GCS cloud services
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      - name: Test Khiops with Azure driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: azure/test
+          tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with GCS driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: gcs/test
+          tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with S3 driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: s3/test
+          tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
 
-  release-debian:
-    if: github.ref_type == 'tag'
-    needs: test-debian
+  # Release the deb package.
+  release-deb:
+    if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'deb')
+    needs: test-deb
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           pattern: deb-*
           merge-multiple: true
@@ -215,8 +233,9 @@ jobs:
           prerelease: true
           updateOnlyUnreleased: true
 
+  # Produce the rpm package.
   build-rpm:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'rpm'))
+    if: inputs.package_format == 'all' || inputs.package_format == 'rpm'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -237,40 +256,42 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: recursive  # Needed to get the vcpkg submodule of each driver.
           fetch-depth: 0
 
-      - name: Configure CMake
+      - name: Generate build system
         run: cmake --preset all-ninja-rel
 
-      - name: Build unified package tree
+      - name: Build all drivers
         run: cmake --build --preset all-ninja-rel
 
-      - name: Build package with CPack
+      - name: Create package with CPack
         run: (cd build/all/ninja-rel && cpack -G RPM)
 
-      - name: Set environment variables
+      - name: Set env vars with distro info and arch
         run: |
           source /etc/os-release
           echo "ID=$ID" >> "$GITHUB_ENV"
           echo "VERSION_CODENAME=$(echo $PLATFORM_ID | cut -d':' -f2)" >> "$GITHUB_ENV"
           echo "ARCH=$(arch)" >> "$GITHUB_ENV"
 
-      - name: Rename packages with distro codename
+      - name: Rename the drivers' package to include distro codename
         run: |
           cd build/all/ninja-rel/packages
           for filename in *.rpm; do
             mv -v "$filename" "${filename%.${ARCH}*}.${VERSION_CODENAME}.${ARCH}.rpm"
           done
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the drivers' package as artifact
+        uses: actions/upload-artifact@v7
         with:
           name: rpm-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
           path: build/all/ninja-rel/packages/*.rpm
           if-no-files-found: error
 
+  # Test the rpm package.
   test-rpm:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'rpm'))
+    if: inputs.package_format == 'all' || inputs.package_format == 'rpm'
     needs: build-rpm
     runs-on: ubuntu-latest
     strategy:
@@ -285,11 +306,7 @@ jobs:
       packages: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - name: Set environment variables
+      - name: Set env vars with distro info, arch and MPI impl
         run: |
           source /etc/os-release
           echo "ID=$ID" >> "$GITHUB_ENV"
@@ -297,78 +314,101 @@ jobs:
           echo "ARCH=$(arch)" >> "$GITHUB_ENV"
           echo "MPI_IMPLEMENTATION=openmpi" >> "$GITHUB_ENV"
 
-      - name: Download and install Khiops core
+      - name: Install Khiops core
         run: |
           RPM_VERSION="${KHIOPS_CORE_RELEASE//-/_}"
           curl -L "https://github.com/KhiopsML/khiops/releases/download/${KHIOPS_CORE_RELEASE}/khiops-core-${MPI_IMPLEMENTATION}-${RPM_VERSION}-1.${VERSION}.x86_64.rpm" --output ./khiops-core.rpm
           yum install -y ./khiops-core.rpm
 
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           name: rpm-${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
           path: artifacts
 
-      - name: Install unified drivers package
+      - name: Install the drivers' package
         run: yum install -y ./artifacts/khiops-drivers*.rpm
 
-      - uses: ./.github/actions/test-khiops-install
-
-      - uses: google-github-actions/auth@v2
-        with:
-          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
-          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+      - name: Check Khiops detects drivers
+        uses: ./.github/actions/test-khiops-install
 
       - name: Install Azure CLI
+        if: github.ref_type != 'tag'
         run: |
           dnf install -y https://packages.microsoft.com/config/rhel/${{ matrix.os_version }}/packages-microsoft-prod.rpm
           dnf install -y azure-cli
 
-      - uses: azure/login@v2.3.0
+      - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
+        uses: azure/login@v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Use Azure connection string on tags
+      - name: Authenticate to Azure cloud services through connection string env var
         if: github.ref_type == 'tag'
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Authenticate to GCS cloud services
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      - name: Test Khiops with Azure driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: azure/test
+          tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with GCS driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: gcs/test
+          tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with S3 driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: s3/test
+          tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
 
+  # Release the rpm package.
   release-rpm:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'rpm')
     needs: test-rpm
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           pattern: rpm-*
           merge-multiple: true
@@ -385,24 +425,27 @@ jobs:
           prerelease: true
           updateOnlyUnreleased: true
 
+  # Produce the source distribution of the pip package.
   build-pip-sdist:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: recursive  # Needed to get the vcpkg submodule of each driver.
 
       - run: pipx run build --sdist
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the drivers' package as artifact
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-sdist
           path: dist/*.tar.gz
           if-no-files-found: error
 
+  # Produce the binary distribution (wheel) of the pip package.
   build-pip-wheel:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -415,21 +458,23 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive
+          submodules: recursive  # Needed to get the vcpkg submodule of each driver.
 
       - uses: ilammy/msvc-dev-cmd@v1
         if: runner.os == 'Windows'
 
       - uses: pypa/cibuildwheel@v3.3.1
 
-      - uses: actions/upload-artifact@v7
+      - name: Upload the drivers' package as artifact
+        uses: actions/upload-artifact@v7
         with:
           name: pkg-wheel-${{ matrix.os }}
           path: wheelhouse/*.whl
           if-no-files-found: error
 
+  # Test the pip package.
   test-pip:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'pip'))
+    if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     needs:
       - build-pip-sdist
       - build-pip-wheel
@@ -445,11 +490,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-*
           path: wheelhouse
@@ -459,14 +501,14 @@ jobs:
         with:
           python-version: '3.9'
 
-      - name: Create a virtual environment
+      - name: Create virtual env
         run: python -m venv venv
 
-      - name: Add the directory containing the executables to PATH (Linux and macOS)
+      - name: Add the directory containing the executables to the PATH (Linux and macOS)
         if: runner.os == 'Linux' || runner.os == 'macOS'
         run: echo "$(pwd)/venv/bin" >> "$GITHUB_PATH"
 
-      - name: Add the directory containing the executables to PATH (Windows)
+      - name: Add the directory containing the executables to the PATH (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -475,10 +517,10 @@ jobs:
       - name: Install Khiops Core
         run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
 
-      - name: Install unified drivers wheel
+      - name: Install package containing drivers
         run: pip install --find-links=wheelhouse khiops-drivers
 
-      - name: Add Intel MPI runtime to PATH (Windows)
+      - name: Add Intel MPI runtime to the PATH (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -490,57 +532,73 @@ jobs:
           }
           "$($impiDll.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - uses: ./.github/actions/test-khiops-install
+      - name: Check Khiops detects drivers
+        uses: ./.github/actions/test-khiops-install
 
-      - uses: google-github-actions/auth@v2
-        with:
-          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
-          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
-
-      - uses: azure/login@v2.3.0
+      - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
+        uses: azure/login@v2.3.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Use Azure connection string on tags
+      - name: Authenticate to Azure cloud services through connection string env var
         if: github.ref_type == 'tag'
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Authenticate to GCS cloud services
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      - name: Test Khiops with Azure driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: azure/test
+          tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ matrix.os }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with GCS driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: gcs/test
+          tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ matrix.os }}
 
-      - uses: ./.github/actions/test-khiops-on-iris
+      - name: Test Khiops with S3 driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
         env:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
           test-root: s3/test
+          tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ matrix.os }}
 
   publish-testpypi:
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && github.repository_owner == 'KhiopsML' && inputs.python_repository == 'testpypi'
-    needs:
-      - build-pip-sdist
-      - build-pip-wheel
-      - test-pip
+    if: github.ref_type == 'tag' && inputs.python_repository == 'testpypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
+    needs: test-pip
     runs-on: ubuntu-latest
     environment:
       name: testpypi
@@ -548,7 +606,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-*
           path: dist
@@ -560,7 +619,7 @@ jobs:
           skip-existing: true
 
   publish-pypi:
-    if: github.event_name == 'workflow_dispatch' && github.ref_type == 'tag' && github.repository_owner == 'KhiopsML' && inputs.python_repository == 'pypi'
+    if: github.ref_type == 'tag' && inputs.python_repository == 'pypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
     runs-on: ubuntu-latest
     environment:
@@ -569,7 +628,8 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v8
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
         with:
           pattern: pkg-*
           path: dist
@@ -577,70 +637,71 @@ jobs:
 
       - uses: pypa/gh-action-pypi-publish@release/v1
 
-  build-tgz:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'tgz'))
-    runs-on: ubuntu-latest
-    container: ubuntu:24.04
-    steps:
-      - name: Install packages
-        run: |
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y git ca-certificates
+  ##### Is tar.gz distribution needed?
+  #
+  # build-tgz:
+  #   if: inputs.package_format == 'all' || inputs.package_format == 'tgz'
+  #   runs-on: ubuntu-latest
+  #   container: ubuntu:24.04
+  #   steps:
+  #     - name: Install tools
+  #       env:
+  #         DEBIAN_FRONTEND: noninteractive
+  #       run: apt-get update && apt-get install -y git ca-certificates
 
-      - uses: actions/checkout@v7
-        with:
-          submodules: recursive
-          fetch-depth: 0
+  #     - uses: actions/checkout@v7
+  #       with:
+  #         submodules: recursive
+  #         fetch-depth: 0
 
-      - name: Create source archive
-        run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          bash gcs/scripts/git-archive-all.sh --format tar.gz khiops-drivers.tar.gz
+  #     - name: Create source archive
+  #       run: |
+  #         git config --global --add safe.directory "$GITHUB_WORKSPACE"
+  #         bash gcs/scripts/git-archive-all.sh --format tar.gz khiops-drivers.tar.gz
 
-      - uses: actions/upload-artifact@v7
-        with:
-          name: pkg-tgz
-          path: khiops-drivers.tar.gz
-          if-no-files-found: error
+  #     - uses: actions/upload-artifact@v7
+  #       with:
+  #         name: pkg-tgz
+  #         path: khiops-drivers.tar.gz
+  #         if-no-files-found: error
 
-  test-tgz:
-    if: github.ref_type == 'tag' || (github.event_name == 'workflow_dispatch' && (inputs.package_format == 'all' || inputs.package_format == 'tgz'))
-    needs: build-tgz
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: pkg-tgz
-          path: artifacts
+  # test-tgz:
+  #   if: inputs.package_format == 'all' || inputs.package_format == 'tgz'
+  #   needs: build-tgz
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/download-artifact@v8
+  #       with:
+  #         name: pkg-tgz
+  #         path: artifacts
 
-      - name: Extract and validate source archive
-        run: |
-          mkdir extracted
-          tar -xzf artifacts/khiops-drivers.tar.gz -C extracted
-          find extracted -maxdepth 2 -type f | head -20
-          test -f extracted/CMakeLists.txt || test -f extracted/*/CMakeLists.txt
-          test -f extracted/pyproject.toml || test -f extracted/*/pyproject.toml
+  #     - name: Extract and validate source archive
+  #       run: |
+  #         mkdir extracted
+  #         tar -xzf artifacts/khiops-drivers.tar.gz -C extracted
+  #         find extracted -maxdepth 2 -type f | head -20
+  #         test -f extracted/CMakeLists.txt || test -f extracted/*/CMakeLists.txt
+  #         test -f extracted/pyproject.toml || test -f extracted/*/pyproject.toml
 
-  release-tgz:
-    if: github.ref_type == 'tag'
-    needs: test-tgz
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: pkg-tgz
+  # release-tgz:
+  #   if: github.ref_type == 'tag'
+  #   needs: test-tgz
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: write
+  #   steps:
+  #     - uses: actions/download-artifact@v8
+  #       with:
+  #         name: pkg-tgz
 
-      - uses: ncipollo/release-action@v1.14.0
-        with:
-          allowUpdates: true
-          artifacts: '*.tar.gz'
-          body: |
-            **This release is for testing purposes only and there is no support for it.**
-            **Go to https://khiops.org to install the latest supported version.**
-          draft: false
-          makeLatest: false
-          prerelease: true
-          updateOnlyUnreleased: true
+  #     - uses: ncipollo/release-action@v1.14.0
+  #       with:
+  #         allowUpdates: true
+  #         artifacts: '*.tar.gz'
+  #         body: |
+  #           **This release is for testing purposes only and there is no support for it.**
+  #           **Go to https://khiops.org to install the latest supported version.**
+  #         draft: false
+  #         makeLatest: false
+  #         prerelease: true
+  #         updateOnlyUnreleased: true
