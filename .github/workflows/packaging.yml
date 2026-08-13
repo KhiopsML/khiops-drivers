@@ -463,7 +463,7 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: error
 
-  # Produce the binary distribution (wheel) of the pip package.
+  # Produce the binary distributions (wheels) of the pip package.
   build-pip-wheels:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     runs-on: ${{ matrix.os }}
@@ -616,6 +616,7 @@ jobs:
           driver-name: s3
           os-description: ${{ matrix.os }}
 
+  # Release the pip package to test.pypi.org.
   release-pip-to-testpypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'testpypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
@@ -637,6 +638,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
+  # Release the pip package to pypi.org.
   release-pip-to-pypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'pypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
