@@ -1,5 +1,25 @@
 ---
 # Workflow triggered manually to produce packages of different formats that enable shipping all drivers as a single file.
+#
+# Available package formats: deb, rpm, pip (sdist + wheels).
+#
+# The graph of job execution is the following:
+#
+#   build-deb ----------> test-deb ---> release-deb
+#
+#   build-rpm ----------> test-rpm ---> release-rpm
+#
+#   build-pip-sdist --+             +-> release-pip-to-testpypi
+#                     |             |
+#                     +-> test-pip -+
+#                     |             |
+#   build-pip-wheels -+             +-> release-pip-to-pypi
+#
+# Notes:
+#   - Each build or test job will only run if the input "package_format" is set to "all" or to the corresponding package format.
+#   - Release jobs follow the same rule and they have additional constraints:
+#     - They only run on tags.
+#     - Jobs releasing to pip formats only run if the input "python_repository" is set to the corresponding Python package repository.
 
 name: packaging
 on:
@@ -439,12 +459,12 @@ jobs:
       - name: Upload the drivers' package as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: pkg-sdist
+          name: pip-sdist
           path: dist/*.tar.gz
           if-no-files-found: error
 
   # Produce the binary distribution (wheel) of the pip package.
-  build-pip-wheel:
+  build-pip-wheels:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     runs-on: ${{ matrix.os }}
     strategy:
@@ -468,7 +488,7 @@ jobs:
       - name: Upload the drivers' package as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: pkg-wheel-${{ matrix.os }}
+          name: pip-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
           if-no-files-found: error
 
@@ -477,7 +497,7 @@ jobs:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     needs:
       - build-pip-sdist
-      - build-pip-wheel
+      - build-pip-wheels
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -493,7 +513,7 @@ jobs:
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
-          pattern: pkg-*
+          pattern: pip-*
           path: wheelhouse
           merge-multiple: true
 
@@ -596,7 +616,7 @@ jobs:
           driver-name: s3
           os-description: ${{ matrix.os }}
 
-  publish-testpypi:
+  release-pip-to-testpypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'testpypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
     runs-on: ubuntu-latest
@@ -609,7 +629,7 @@ jobs:
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
-          pattern: pkg-*
+          pattern: pip-*
           path: dist
           merge-multiple: true
 
@@ -618,7 +638,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
-  publish-pypi:
+  release-pip-to-pypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'pypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
     runs-on: ubuntu-latest
@@ -631,7 +651,7 @@ jobs:
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
-          pattern: pkg-*
+          pattern: pip-*
           path: dist
           merge-multiple: true
 
