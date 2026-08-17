@@ -254,6 +254,22 @@ jobs:
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
 
+      - name: Show Iris comparison logs on failure
+        if: failure()
+        run: |
+          for log in \
+            azure/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            gcs/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            s3/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log
+          do
+            echo "==== $log ===="
+            if [[ -f "$log" ]]; then
+              cat "$log"
+            else
+              echo "Log not found"
+            fi
+          done
+
   # Release the deb package.
   release-deb:
     if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'deb')
@@ -470,6 +486,22 @@ jobs:
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
 
+      - name: Show Iris comparison logs on failure
+        if: failure()
+        run: |
+          for log in \
+            azure/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            gcs/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            s3/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log
+          do
+            echo "==== $log ===="
+            if [[ -f "$log" ]]; then
+              cat "$log"
+            else
+              echo "Log not found"
+            fi
+          done
+
   # Release the rpm package.
   release-rpm:
     if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'rpm')
@@ -674,6 +706,22 @@ jobs:
           tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ matrix.os }}
+
+      - name: Show Iris comparison logs on failure
+        if: failure()
+        run: |
+          for log in \
+            azure/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            gcs/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log \
+            s3/test/LearningTest/TestKhiops/Standard/Iris/comparisonResults.log
+          do
+            echo "==== $log ===="
+            if [[ -f "$log" ]]; then
+              cat "$log"
+            else
+              echo "Log not found"
+            fi
+          done
 
   # Release the pip package to test.pypi.org.
   release-pip-to-testpypi:
