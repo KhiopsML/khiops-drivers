@@ -665,11 +665,7 @@ jobs:
             s3/test/LearningTest
             LearningTestTool
           sparse-checkout-cone-mode: false
-
-      # Authentication steps must come AFTER the checkout above.
-      # google-github-actions/auth writes a credentials file into the workspace;
-      # actions/checkout (with its default clean: true) would delete that file
-      # if it ran after the auth step, causing GCS authentication to fail.
+          clean: false  # Workspace already cleaned with first sparse checkout, and we must keep the created venv which contains Khiops and the drivers.
 
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
