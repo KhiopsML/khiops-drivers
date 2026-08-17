@@ -10,7 +10,7 @@ This repository groups the Khiops cloud storage drivers for Azure, Google Cloud 
 - `src/`: code that is common to all drivers
 - `test/`: tests that all drivers must pass
 
-## Build entry point
+## Building
 
 The repository exposes a single top-level `CMakeLists.txt` and a single top-level `CMakePresets.json`.
 
