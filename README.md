@@ -1,6 +1,10 @@
 # Khiops Drivers
 
-This repository groups the Khiops cloud storage drivers for Azure, Google Cloud Storage, and Amazon S3 in a single source tree.
+This repository contains cloud storage drivers for the [Khiops](https://khiops.org/) AutoML suite.
+There are drivers for:
+- Microsoft Azure Cloud Storage;
+- Google Cloud Storage;
+- Amazon S3 Cloud Storage.
 
 ## Repository layout
 
