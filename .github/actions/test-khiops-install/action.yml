@@ -75,7 +75,8 @@ runs:
 
         $versionOut = Join-Path $env:RUNNER_TEMP "khiops_version.txt"
         cmd /c "\"$cmd\" -v" *> $versionOut
-        $lineCount = (Get-Content $versionOut | Measure-Object -Line).Lines
+        # Filter blank lines before counting: cmd /c appends a trailing empty line to the output file.
+        $lineCount = (Get-Content $versionOut | Where-Object { $_ -match '\S' } | Measure-Object -Line).Lines
         if ($lineCount -gt 1) {
           Write-Error "Unexpected output in khiops -v"
           exit 1
