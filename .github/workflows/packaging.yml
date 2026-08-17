@@ -87,23 +87,28 @@ jobs:
         run: cmake --preset all-ninja-rel
 
       - name: Build all drivers
-        run: cmake --build --preset all-ninja-rel
-
-      - name: Show vcpkg logs on build failure
-        if: failure()
         run: |
-          for log in \
-            build/all/ninja-rel/azure/vcpkg-bootstrap.log \
-            build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
-            build/all/ninja-rel/s3/vcpkg-bootstrap.log
-          do
-            echo "==== $log ===="
-            if [[ -f "$log" ]]; then
-              cat "$log"
-            else
-              echo "Log not found"
-            fi
-          done
+          set +e
+          cmake --build --preset all-ninja-rel
+          rc=$?
+          set -e
+
+          if [[ $rc -ne 0 ]]; then
+            for log in \
+              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
+              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
+              build/all/ninja-rel/s3/vcpkg-bootstrap.log
+            do
+              echo "==== $log ===="
+              if [[ -f "$log" ]]; then
+                cat "$log"
+              else
+                echo "Log not found"
+              fi
+            done
+          fi
+
+          exit $rc
 
       - name: Create package with CPack
         run: (cd build/all/ninja-rel && cpack -G DEB)
@@ -315,23 +320,28 @@ jobs:
         run: cmake --preset all-ninja-rel
 
       - name: Build all drivers
-        run: cmake --build --preset all-ninja-rel
-
-      - name: Show vcpkg logs on build failure
-        if: failure()
         run: |
-          for log in \
-            build/all/ninja-rel/azure/vcpkg-bootstrap.log \
-            build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
-            build/all/ninja-rel/s3/vcpkg-bootstrap.log
-          do
-            echo "==== $log ===="
-            if [[ -f "$log" ]]; then
-              cat "$log"
-            else
-              echo "Log not found"
-            fi
-          done
+          set +e
+          cmake --build --preset all-ninja-rel
+          rc=$?
+          set -e
+
+          if [[ $rc -ne 0 ]]; then
+            for log in \
+              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
+              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
+              build/all/ninja-rel/s3/vcpkg-bootstrap.log
+            do
+              echo "==== $log ===="
+              if [[ -f "$log" ]]; then
+                cat "$log"
+              else
+                echo "Log not found"
+              fi
+            done
+          fi
+
+          exit $rc
 
       - name: Create package with CPack
         run: (cd build/all/ninja-rel && cpack -G RPM)
