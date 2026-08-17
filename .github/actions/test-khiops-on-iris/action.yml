@@ -89,15 +89,55 @@ runs:
     - name: Check test results
       shell: bash
       run: |
-        set -euo pipefail
+        set -uo pipefail
         iris_path="$GITHUB_WORKSPACE/${{ inputs.test-root }}/LearningTest/TestKhiops/Standard/Iris"
         tool_py="$GITHUB_WORKSPACE/${{ inputs.tool-root }}/py"
+        comparison_log="$iris_path/comparisonResults.log"
+        err_file="$iris_path/results/err.txt"
+        kht_log="/tmp/khiops-log.txt"
+
+        print_failure_logs() {
+          if [[ -f "$comparison_log" ]]; then
+            echo "==== $comparison_log ===="
+            cat "$comparison_log"
+          else
+            echo "Comparison log not found: $comparison_log"
+          fi
+
+          if [[ -f "$err_file" ]]; then
+            echo "==== $err_file ===="
+            cat "$err_file"
+          else
+            echo "Error file not found: $err_file"
+          fi
+        }
+
         touch "$iris_path/results/time.log"
+
         "$PYTHON" "$tool_py/kht_test.py" "$iris_path" check
-        "$PYTHON" "$tool_py/kht_apply.py" "$iris_path" errors | tee /tmp/khiops-log.txt
+        rc=$?
+        if [[ $rc -ne 0 ]]; then
+          print_failure_logs
+          exit $rc
+        fi
+
+        "$PYTHON" "$tool_py/kht_apply.py" "$iris_path" errors | tee "$kht_log"
+        rc=$?
+        if [[ $rc -ne 0 ]]; then
+          print_failure_logs
+          exit $rc
+        fi
+
         "$PYTHON" "$tool_py/kht_collect_results.py" "$iris_path" "$GITHUB_WORKSPACE/results/khiops/${{ inputs.driver-name }}" --collect-type warnings
-        if grep -q error /tmp/khiops-log.txt; then
+        rc=$?
+        if [[ $rc -ne 0 ]]; then
+          print_failure_logs
+          exit $rc
+        fi
+
+        if grep -q error "$kht_log"; then
           echo "::error::Errors in Khiops run"
+          print_failure_logs
           exit 1
         fi
 
