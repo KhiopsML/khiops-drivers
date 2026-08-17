@@ -668,6 +668,9 @@ jobs:
           sparse-checkout-cone-mode: false
           clean: false  # Workspace already cleaned with first sparse checkout, and we must keep the created venv which contains Khiops and the drivers.
 
+      - name: Fix Azure config path on Windows
+        uses: ./.github/actions/fix-win-azure-config
+
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
         uses: azure/login@v2.3.0
@@ -675,9 +678,6 @@ jobs:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Fix Azure config path on Windows
-        uses: ./.github/actions/fix-win-azure-config
 
       - name: Authenticate to Azure cloud services through connection string env var
         if: github.ref_type == 'tag'
