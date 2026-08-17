@@ -34,7 +34,7 @@ on:
           - deb
           - rpm
           - pip
-          # - tgz  # Disabled, see at the end of the file.
+          # - tgz  # Disabled, see at the end of this file.
       python_repository:
         description: Python repository used for publication
         type: choice
