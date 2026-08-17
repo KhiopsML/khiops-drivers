@@ -193,6 +193,21 @@ jobs:
         if: github.ref_type != 'tag'
         run: curl -sL https://aka.ms/InstallAzureCLIDeb | bash
 
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      # Authentication steps must come AFTER the checkout above.
+      # google-github-actions/auth writes a credentials file into the workspace;
+      # actions/checkout (with its default clean: true) would delete that file
+      # if it ran after the auth step, causing GCS authentication to fail.
+
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
         uses: azure/login@v2.3.0
@@ -210,16 +225,6 @@ jobs:
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
-
-      - name: Fetch Iris dataset and Khiops testing tools
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
-            LearningTestTool
-          sparse-checkout-cone-mode: false
 
       - name: Test Khiops with Azure driver on Iris dataset
         uses: ./.github/actions/test-khiops-on-iris
@@ -425,6 +430,21 @@ jobs:
           dnf install -y https://packages.microsoft.com/config/rhel/${{ matrix.os_version }}/packages-microsoft-prod.rpm
           dnf install -y azure-cli
 
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      # Authentication steps must come AFTER the checkout above.
+      # google-github-actions/auth writes a credentials file into the workspace;
+      # actions/checkout (with its default clean: true) would delete that file
+      # if it ran after the auth step, causing GCS authentication to fail.
+
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
         uses: azure/login@v2.3.0
@@ -442,16 +462,6 @@ jobs:
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
-
-      - name: Fetch Iris dataset and Khiops testing tools
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
-            LearningTestTool
-          sparse-checkout-cone-mode: false
 
       - name: Test Khiops with Azure driver on Iris dataset
         uses: ./.github/actions/test-khiops-on-iris
@@ -646,6 +656,21 @@ jobs:
       - name: Check Khiops detects drivers
         uses: ./.github/actions/test-khiops-install
 
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+
+      # Authentication steps must come AFTER the checkout above.
+      # google-github-actions/auth writes a credentials file into the workspace;
+      # actions/checkout (with its default clean: true) would delete that file
+      # if it ran after the auth step, causing GCS authentication to fail.
+
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
         uses: azure/login@v2.3.0
@@ -663,16 +688,6 @@ jobs:
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
-
-      - name: Fetch Iris dataset and Khiops testing tools
-        uses: actions/checkout@v7
-        with:
-          sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
-            LearningTestTool
-          sparse-checkout-cone-mode: false
 
       - name: Test Khiops with Azure driver on Iris dataset
         uses: ./.github/actions/test-khiops-on-iris
