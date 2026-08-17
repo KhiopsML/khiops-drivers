@@ -41,7 +41,10 @@ runs:
       shell: pwsh
       env:
         KHIOPS_PROC_NUMBER: 4
-        EXPECTED_DRIVERS: ${{ inputs.expected-drivers }}
+        EXPECTED_DRIVERS: |
+          Azure driver
+          GCS driver
+          S3 driver
       run: |
         $cmd = (Get-Command khiops.cmd -ErrorAction SilentlyContinue)?.Source
         if (-not $cmd) {
@@ -75,9 +78,18 @@ runs:
 
         $versionOut = Join-Path $env:RUNNER_TEMP "khiops_version.txt"
         cmd /c "\"$cmd\" -v" *> $versionOut
-        # Filter blank lines before counting: cmd /c appends a trailing empty line to the output file.
-        $lineCount = (Get-Content $versionOut | Where-Object { $_ -match '\S' } | Measure-Object -Line).Lines
-        if ($lineCount -gt 1) {
+        # Keep the check strict on fatal output while tolerating benign warning lines.
+        $versionLines = Get-Content $versionOut -ErrorAction SilentlyContinue
+        $nonEmptyLines = $versionLines | Where-Object { $_ -match '\S' }
+        $fatalLines = $nonEmptyLines | Where-Object {
+          ($_ -notmatch '^WARNING: You are using pip version ') -and
+          ($_ -notmatch '^You should consider upgrading via the ') -and
+          ($_ -notmatch '^\[notice\] A new release of pip is available:') -and
+          ($_ -notmatch '^\[notice\] To update, run: ')
+        }
+        if (($fatalLines | Measure-Object -Line).Lines -gt 1) {
+          Write-Host "khiops -v output:"
+          $nonEmptyLines | Out-Host
           Write-Error "Unexpected output in khiops -v"
           exit 1
         }

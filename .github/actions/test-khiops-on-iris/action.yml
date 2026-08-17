@@ -44,12 +44,25 @@ runs:
     - name: Set the Khiops launcher path
       shell: bash
       run: |
+        set -euo pipefail
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          khiops_cmd=$(pwsh -NoLogo -NoProfile -Command "(Get-Command khiops.cmd -ErrorAction Stop).Source")
-          echo "KHIOPS_SCRIPT=$khiops_cmd" >> "$GITHUB_ENV"
+          khiops_cmd=$(pwsh -NoLogo -NoProfile -Command "(Get-Command khiops.cmd -ErrorAction SilentlyContinue)?.Source")
+          if [[ -z "${khiops_cmd:-}" ]]; then
+            khiops_cmd=$(pwsh -NoLogo -NoProfile -Command "(Get-Command khiops -ErrorAction Stop).Source")
+          fi
+          # Normalize CRLF output from PowerShell before exporting to GITHUB_ENV.
+          khiops_cmd="${khiops_cmd%$'\r'}"
         else
-          echo "KHIOPS_SCRIPT=$(command -v khiops)" >> "$GITHUB_ENV"
+          khiops_cmd=$(command -v khiops || true)
         fi
+
+        if [[ -z "${khiops_cmd:-}" ]]; then
+          echo "::error::Unable to locate 'khiops' executable in PATH"
+          echo "PATH=$PATH"
+          exit 1
+        fi
+
+        echo "KHIOPS_SCRIPT=$khiops_cmd" >> "$GITHUB_ENV"
 
     - name: Copy Azure directory to root home in container jobs
       if: ${{ job.container.id != '' }}
