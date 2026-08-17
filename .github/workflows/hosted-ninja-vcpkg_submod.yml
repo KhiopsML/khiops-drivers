@@ -80,10 +80,12 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       # Allow the drivers to log everything. CTest will then only show the logs of a test case if it failed.
+      AZURE_DRIVER_LOGFILE: /dev/stderr
       AZURE_DRIVER_LOGLEVEL: trace
+      GCS_DRIVER_LOGFILE: /dev/stderr
       GCS_DRIVER_LOGLEVEL: trace
+      S3_DRIVER_LOGFILE: /dev/stderr
       S3_DRIVER_LOGLEVEL: trace
-      # TODO: We should also specify the *_DRIVER_LOGFILE environment variables.
 
     steps:
 
