@@ -25,14 +25,14 @@ alias testgcsrel='ctest --preset gcs-ninja-rel --stop-on-failure'
 
 ### AZURE DRIVER ###
 # Generate the build system with tests enabled.
-alias genazdbg='cmake --preset azure-ninja-dbg -DBUILD_TESTS=ON'
-alias genazrel='cmake --preset azure-ninja-rel -DBUILD_TESTS=ON'
+alias genazuredbg='cmake --preset azure-ninja-dbg -DBUILD_TESTS=ON'
+alias genazurerel='cmake --preset azure-ninja-rel -DBUILD_TESTS=ON'
 # Build with parallelization enabled.
-alias buildazdbg='cmake --build --preset azure-ninja-dbg -j'
-alias buildazrel='cmake --build --preset azure-ninja-rel -j'
+alias buildazuredbg='cmake --build --preset azure-ninja-dbg -j'
+alias buildazurerel='cmake --build --preset azure-ninja-rel -j'
 # Launch the tests, stopping on first failure, using the blob storage service.
-alias testazbdbg='ctest --preset azure-ninja-dbg-blob --stop-on-failure'
-alias testazbrel='ctest --preset azure-ninja-rel-blob --stop-on-failure'
+alias testazureblobdbg='ctest --preset azure-ninja-dbg-blob --stop-on-failure'
+alias testazureblobrel='ctest --preset azure-ninja-rel-blob --stop-on-failure'
 # Launch the tests, stopping on first failure, using the file share storage service.
-alias testazfdbg='ctest --preset azure-ninja-dbg-file --stop-on-failure'
-alias testazfrel='ctest --preset azure-ninja-rel-file --stop-on-failure'
+alias testazurefiledbg='ctest --preset azure-ninja-dbg-file --stop-on-failure'
+alias testazurefilerel='ctest --preset azure-ninja-rel-file --stop-on-failure'
