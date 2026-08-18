@@ -59,16 +59,23 @@ jobs:
   # Produce the deb package.
   build-deb:
     if: inputs.package_format == 'all' || inputs.package_format == 'deb'
-    runs-on: ${{ matrix.setup.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        setup:
+      matrix: &deb-matrix
+        include:
+          - { os: ubuntu-latest, image: debian11 }
           - { os: ubuntu-latest, image: debian12 }
+          - { os: ubuntu-latest, image: debian13 }
+          - { os: ubuntu-latest, image: ubuntu20.04 }
+          - { os: ubuntu-latest, image: ubuntu22.04 }
           - { os: ubuntu-latest, image: ubuntu24.04 }
+          - { os: ubuntu-latest, image: ubuntu26.04 }
+          - { os: ubuntu-24.04-arm, image: ubuntu22.04-arm }
           - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
+          - { os: ubuntu-24.04-arm, image: ubuntu26.04-arm }
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.image }}:latest
     steps:
       - name: Install tools
         run: |
@@ -139,16 +146,12 @@ jobs:
   test-deb:
     if: inputs.package_format == 'all' || inputs.package_format == 'deb'
     needs: build-deb
-    runs-on: ${{ matrix.setup.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        setup:
-          - { os: ubuntu-latest, image: debian12 }
-          - { os: ubuntu-latest, image: ubuntu24.04 }
-          - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
+      matrix: *deb-matrix
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.setup.image }}:latest
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.image }}:latest
     permissions:
       contents: read
       packages: read
@@ -296,11 +299,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { os: rockylinux, os_version: '9' }
+      matrix: &rpm-matrix
+        rocky_version:
+          - '9'
+          - '10'
     container:
-      image: ${{ matrix.os }}:${{ matrix.os_version }}
+      image: ghcr.io/khiopsml/khiops/khiopsdev-rocky${{ matrix.rocky_version }}:latest
     steps:
       - name: Install packages
         run: |
@@ -374,11 +378,9 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { os: rockylinux, os_version: '9' }
+      matrix: *rpm-matrix
     container:
-      image: ${{ matrix.os }}:${{ matrix.os_version }}
+      image: ghcr.io/khiopsml/khiops/khiopsdev-rocky${{ matrix.rocky_version }}:latest
     permissions:
       contents: read
       packages: read
@@ -421,7 +423,7 @@ jobs:
       - name: Install Azure CLI
         if: github.ref_type != 'tag'
         run: |
-          dnf install -y https://packages.microsoft.com/config/rhel/${{ matrix.os_version }}/packages-microsoft-prod.rpm
+          dnf install -y https://packages.microsoft.com/config/rhel/${{ matrix.rocky_version }}/packages-microsoft-prod.rpm
           dnf install -y azure-cli
 
       - name: Fetch Iris dataset and Khiops testing tools
@@ -540,12 +542,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
+      matrix: &pip-matrix
         os:
           - ubuntu-24.04
           - ubuntu-24.04-arm
-          - windows-2025-vs2026
           - macos-15
+          - windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
         with:
@@ -572,12 +574,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix:
-        os:
-          - ubuntu-24.04
-          - ubuntu-24.04-arm
-          - windows-2025-vs2026
-          - macos-15
+      matrix: *pip-matrix
     permissions:
       id-token: write
     steps:
