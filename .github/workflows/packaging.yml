@@ -21,7 +21,7 @@
 #     - They only run on tags.
 #     - Jobs releasing to pip formats only run if the input "python_repository" is set to the corresponding Python package repository.
 #   - Not shown on the graph above is a job called "artifacts-summary" that shows the table of all the uploaded artifacts with the download links.
-#     This job exists because GitHub does not seem to want to lists the artifacts when there are many of them...
+#     This job exists because the GitHub web interface does not always list the artifacts...
 #     It will be triggered after all build-* jobs complete.
 
 name: packaging
