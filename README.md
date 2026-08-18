@@ -14,6 +14,11 @@ There are drivers for:
 - `src/`: code that is common to all drivers
 - `test/`: tests that all drivers must pass
 
+## Installing
+
+The [Releases](https://github.com/KhiopsML/khiops-drivers/releases) page allows you to download the drivers in various package formats for various operating systems.
+On [this page](https://khiops.org/setup), you can look for the drivers' section of the Khiops documentation for detailed installation instructions.
+
 ## Building
 
 The repository exposes a single top-level `CMakeLists.txt` and a single top-level `CMakePresets.json`.
