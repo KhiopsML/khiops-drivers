@@ -22,6 +22,7 @@
 #     - Jobs releasing to pip formats only run if the input "python_repository" is set to the corresponding Python package repository.
 #   - Not shown on the graph above is a job called "artifacts-summary" that shows the table of all the uploaded artifacts with the download links.
 #     This job exists because GitHub does not seem to want to lists the artifacts when there are many of them...
+#     It will be triggered after all build-* jobs complete.
 
 name: packaging
 on:
@@ -781,13 +782,26 @@ jobs:
             artifacts.sort((a, b) => a.name.localeCompare(b.name));
 
             const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(2);
-            let table = "| Artifact | Size (MiB) | SHA256 | Expires | Download |\n";
-            table += "| --- | ---: | --- | --- | --- |\n";
+            const rows = [
+              [
+                { data: "Artifact", header: true },
+                { data: "Size (MiB)", header: true },
+                { data: "SHA256", header: true },
+                { data: "Expires", header: true },
+                { data: "Download", header: true },
+              ],
+            ];
 
             for (const artifact of artifacts) {
               const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
               const digest = artifact.digest ? artifact.digest.replace(/^sha256:/, "") : "n/a";
-              table += `| ${artifact.name} | ${mb(artifact.size_in_bytes)} | ${digest} | ${artifact.expires_at} | [link](${downloadUrl}) |\n`;
+              rows.push([
+                artifact.name,
+                mb(artifact.size_in_bytes),
+                digest,
+                artifact.expires_at,
+                `<a href="${downloadUrl}">link</a>`,
+              ]);
             }
 
             if (artifacts.length === 0) {
@@ -798,7 +812,7 @@ jobs:
             } else {
               await core.summary
                 .addHeading(`Workflow artifacts (${artifacts.length})`)
-                .addRaw(table)
+                .addTable(rows)
                 .write();
             }
 
