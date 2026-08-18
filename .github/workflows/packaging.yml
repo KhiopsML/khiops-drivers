@@ -20,6 +20,8 @@
 #   - Release jobs follow the same rule and they have additional constraints:
 #     - They only run on tags.
 #     - Jobs releasing to pip formats only run if the input "python_repository" is set to the corresponding Python package repository.
+#   - Not shown on the graph above is a job called "artifacts-summary" that shows the table of all the uploaded artifacts with the download links.
+#     This job exists because GitHub does not seem to want to lists the artifacts when there are many of them...
 
 name: packaging
 on:
@@ -738,6 +740,67 @@ jobs:
           merge-multiple: true
 
       - uses: pypa/gh-action-pypi-publish@release/v1
+
+  # Publish a table of all run artifacts in the workflow summary.
+  artifacts-summary:
+    if: always()
+    needs:
+      - build-deb
+      - build-rpm
+      - build-pip-sdist
+      - build-pip-wheels
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Publish artifact links in Job Summary
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const runId = context.runId;
+
+            let page = 1;
+            const artifacts = [];
+            while (true) {
+              const response = await github.rest.actions.listWorkflowRunArtifacts({
+                owner,
+                repo,
+                run_id: runId,
+                per_page: 100,
+                page,
+              });
+              artifacts.push(...response.data.artifacts);
+              if (response.data.artifacts.length < 100) {
+                break;
+              }
+              page += 1;
+            }
+
+            artifacts.sort((a, b) => a.name.localeCompare(b.name));
+
+            const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(2);
+            let table = "| Artifact | Size (MiB) | SHA256 | Expires | Download |\n";
+            table += "| --- | ---: | --- | --- | --- |\n";
+
+            for (const artifact of artifacts) {
+              const downloadUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+              const digest = artifact.digest ? artifact.digest.replace(/^sha256:/, "") : "n/a";
+              table += `| ${artifact.name} | ${mb(artifact.size_in_bytes)} | ${digest} | ${artifact.expires_at} | [link](${downloadUrl}) |\n`;
+            }
+
+            if (artifacts.length === 0) {
+              await core.summary
+                .addHeading("Workflow artifacts")
+                .addRaw("No artifacts found for this run.")
+                .write();
+            } else {
+              await core.summary
+                .addHeading(`Workflow artifacts (${artifacts.length})`)
+                .addRaw(table)
+                .write();
+            }
 
   ##### Is tar.gz distribution needed?
   #
