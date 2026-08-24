@@ -51,7 +51,10 @@ constexpr const char *driver_scheme = "gs";
 // ref https://github.com/googleapis/google-cloud-cpp/issues/2657
 // Default value below can be overriden by setting GCS_PREFERRED_BUFFER_SIZE
 constexpr long long preferred_buffer_size = 4 * 1024 * 1024;
-constexpr int failure_timeout = 30; // 30s
+// Increased timeouts for cloud operations to handle network latency and rate
+// limiting
+constexpr int failure_timeout = 120; // 120s
+constexpr int retry_timeout = 300;   // 300s (5 minutes)
 
 bool bIsConnected = false;
 
@@ -537,9 +540,10 @@ int driver_connect() {
   gc::Options options;
   options
       .set<gcs::RetryPolicyOption>(
-          gcs::LimitedTimeRetryPolicy(std::chrono::seconds(1)).clone())
+          gcs::LimitedTimeRetryPolicy(std::chrono::seconds(retry_timeout)).clone())
       .set<gcs::TransferStallTimeoutOption>(
           std::chrono::seconds(failure_timeout));
+
 #if defined(__linux__)
   options.set<gc::CARootsFilePathOption>(certificate_path);
 #endif
