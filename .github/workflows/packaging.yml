@@ -618,7 +618,7 @@ jobs:
         run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
 
       - name: Install package containing drivers
-        run: pip install --find-links=wheelhouse khiops-drivers
+        run: pip install --find-links=wheelhouse --no-index khiops-drivers
 
       - name: Add Intel MPI runtime to the PATH (Windows)
         if: runner.os == 'Windows'
