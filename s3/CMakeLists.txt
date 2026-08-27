@@ -164,6 +164,16 @@ else()
     TARGETS khiopsdriver_file_s3
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin) # dll on windows
+  if(WIN32)
+    install(CODE "
+      file(GLOB dlls LIST_DIRECTORIES false \"${CMAKE_BINARY_DIR}/bin/*.dll\")
+      if(NOT dlls)
+        message(FATAL_ERROR \"Failed to find the DLLs of the dependencies in '${CMAKE_BINARY_DIR}/bin/' .\")
+      endif()
+      list(REMOVE_ITEM dlls \"${CMAKE_BINARY_DIR}/bin/libkhiopsdriver_file_s3.dll\")
+      file(INSTALL DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\" TYPE FILE FILES \${dlls})
+    ")
+  endif()
 endif()
 
 set(CPACK_PACKAGE_VENDOR Orange)
