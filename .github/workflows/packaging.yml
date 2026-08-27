@@ -75,10 +75,8 @@ jobs:
           - { os: ubuntu-latest, image: ubuntu20.04 }
           - { os: ubuntu-latest, image: ubuntu22.04 }
           - { os: ubuntu-latest, image: ubuntu24.04 }
-          - { os: ubuntu-latest, image: ubuntu26.04 }
           - { os: ubuntu-24.04-arm, image: ubuntu22.04-arm }
           - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
-          - { os: ubuntu-24.04-arm, image: ubuntu26.04-arm }
     container:
       image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.image }}:latest
     steps:
