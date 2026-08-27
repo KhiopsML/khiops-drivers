@@ -543,7 +543,6 @@ int driver_connect() {
           gcs::LimitedTimeRetryPolicy(std::chrono::seconds(retry_timeout)).clone())
       .set<gcs::TransferStallTimeoutOption>(
           std::chrono::seconds(failure_timeout));
-
 #if defined(__linux__)
   options.set<gc::CARootsFilePathOption>(certificate_path);
 #endif
