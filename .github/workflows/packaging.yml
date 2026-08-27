@@ -1,7 +1,7 @@
 ---
 # Workflow triggered manually to produce packages of different formats that enable shipping all drivers as a single file.
 #
-# Available package formats: deb, rpm, pip (sdist + wheels).
+# Available package formats: deb, rpm, pip, (sdist + wheels), zip (zip with DLLs, for Windows only).
 #
 # The graph of job execution is the following:
 #
@@ -14,6 +14,8 @@
 #                     +-> test-pip -+
 #                     |             |
 #   build-pip-wheels -+             +-> release-pip-to-pypi
+#
+#   build-zip ----------> test-zip ---> release-zip
 #
 # Notes:
 #   - Each build or test job will only run if the input "package_format" is set to "all" or to the corresponding package format.
@@ -37,6 +39,7 @@ on:
           - deb
           - rpm
           - pip
+          - zip
       python_repository:
         description: Python repository used for publication
         type: choice
@@ -741,6 +744,207 @@ jobs:
 
       - uses: pypa/gh-action-pypi-publish@release/v1
 
+  # Produce the zip package for Windows.
+  build-zip:
+    if: inputs.package_format == 'all' || inputs.package_format == 'zip'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive  # Needed to get the vcpkg submodule of each driver.
+
+      - uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Generate build system
+        run: cmake --preset all-ninja-rel
+
+      - name: Build all drivers
+        run: |
+          set +e
+          cmake --build --preset all-ninja-rel
+          rc=$?
+          set -e
+
+          if [[ $rc -ne 0 ]]; then
+            for log in \
+              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
+              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
+              build/all/ninja-rel/s3/vcpkg-bootstrap.log
+            do
+              echo "==== $log ===="
+              if [[ -f "$log" ]]; then
+                cat "$log"
+              else
+                echo "Log not found"
+              fi
+            done
+          fi
+
+          exit $rc
+
+      - name: Create package with CPack
+        run: (cd build/all/ninja-rel && cpack -G ZIP)
+
+      - name: Upload the drivers' package as artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: zip-windows
+          path: build/all/ninja-rel/packages/*.zip
+          if-no-files-found: error
+
+  # Test the zip package for Windows.
+  test-zip:
+    if: inputs.package_format == 'all' || inputs.package_format == 'zip'
+    needs: build-zip
+    runs-on: windows-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Fetch GitHub actions
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            .github/actions/fix-win-azure-config
+            .github/actions/test-khiops-install
+            .github/actions/test-khiops-on-iris
+          sparse-checkout-cone-mode: false
+
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: zip-windows
+          path: zip-package
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.9'
+
+      - name: Create virtual env
+        run: python -m venv venv
+
+      - name: Add the directory containing the executables to the PATH
+        shell: pwsh
+        run: |
+          "$((Resolve-Path 'venv/Scripts').Path)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Install Khiops Core
+        run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
+
+      - name: Add Intel MPI runtime to the PATH
+        shell: pwsh
+        run: |
+          $venvRoot = Resolve-Path "venv"
+          $impiDll = Get-ChildItem -Path $venvRoot -Recurse -Filter "impi.dll" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $impiDll) {
+            Write-Error "impi.dll not found in venv"
+            exit 1
+          }
+          "$($impiDll.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Extract zip package and deploy drivers
+        shell: pwsh
+        run: |
+          $zipFile = Get-ChildItem -Path zip-package -Filter *.zip | Select-Object -First 1
+          if (-not $zipFile) { Write-Error "No zip file found in zip-package/"; exit 1 }
+          Expand-Archive -Path $zipFile.FullName -DestinationPath zip-extracted
+          # Copy all DLLs (drivers + S3 runtime dependencies) next to the Khiops
+          # launcher script so that Khiops can load them at startup.
+          Get-ChildItem -Path zip-extracted -Recurse -Filter *.dll |
+            ForEach-Object { Copy-Item -Path $_.FullName -Destination venv\Scripts\ -Force }
+
+      - name: Fix Azure config path on Windows
+        uses: ./.github/actions/fix-win-azure-config
+
+      - name: Check Khiops detects drivers
+        uses: ./.github/actions/test-khiops-install
+
+      - name: Fetch Iris dataset and Khiops testing tools
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: |
+            azure/test/LearningTest
+            gcs/test/LearningTest
+            s3/test/LearningTest
+            LearningTestTool
+          sparse-checkout-cone-mode: false
+          clean: false  # Keep the venv and installed drivers.
+
+      - name: Authenticate to Azure cloud services through WIF
+        if: github.ref_type != 'tag'
+        uses: azure/login@v2.3.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Authenticate to Azure cloud services through connection string env var
+        if: github.ref_type == 'tag'
+        run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
+
+      - name: Authenticate to GCS cloud services
+        uses: google-github-actions/auth@v2
+        with:
+          service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+          workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+      - name: Test Khiops with Azure driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
+        env:
+          AZURE_DRIVER_LOGLEVEL: warning
+          AZURE_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: azure/test
+          tool-root: LearningTestTool
+          driver-name: azure
+          os-description: windows-latest
+
+      - name: Test Khiops with GCS driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
+        env:
+          GCS_DRIVER_LOGLEVEL: warning
+          GCS_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: gcs/test
+          tool-root: LearningTestTool
+          driver-name: gcs
+          os-description: windows-latest
+
+      - name: Test Khiops with S3 driver on Iris dataset
+        uses: ./.github/actions/test-khiops-on-iris
+        env:
+          S3_DRIVER_LOGLEVEL: warning
+          S3_DRIVER_LOGFILE: /dev/stderr
+        with:
+          test-root: s3/test
+          tool-root: LearningTestTool
+          driver-name: s3
+          os-description: windows-latest
+
+  # Release the zip package for Windows.
+  release-zip:
+    if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'zip')
+    needs: test-zip
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download the drivers' package stored as artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: zip-windows
+
+      - uses: ncipollo/release-action@v1.14.0
+        with:
+          allowUpdates: true
+          artifacts: '*.zip'
+          body: |
+            **This release is for testing purposes only and there is no support for it.**
+            **Go to https://khiops.org to install the latest supported version.**
+          draft: false
+          makeLatest: false
+          prerelease: true
+          updateOnlyUnreleased: true
+
   # Publish a table of all run artifacts in the workflow summary.
   artifacts-summary:
     if: always()
@@ -749,6 +953,7 @@ jobs:
       - build-rpm
       - build-pip-sdist
       - build-pip-wheels
+      - build-zip
     runs-on: ubuntu-latest
     permissions:
       actions: read

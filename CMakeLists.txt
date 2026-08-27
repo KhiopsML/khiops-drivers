@@ -95,12 +95,11 @@ elseif(KHIOPS_PACKAGE_ALL)
   # Aggregate all three shared libraries into the CPack install tree.
   # The staging directory is populated by cmake --build via the ExternalProjects.
   if(WIN32)
+    # Install all DLLs: the three driver DLLs, plus the S3 runtime dependencies
+    # (S3 uses the dynamic x64-windows triplet, unlike Azure/GCS which are fully static).
     install(DIRECTORY "${_staging}/bin/"
             DESTINATION bin
-            FILES_MATCHING PATTERN "libkhiopsdriver_file_*.dll")
-    install(DIRECTORY "${_staging}/lib/"
-            DESTINATION lib
-            FILES_MATCHING PATTERN "libkhiopsdriver_file_*.lib")
+            FILES_MATCHING PATTERN "*.dll")
   elseif(APPLE)
     install(DIRECTORY "${_staging}/lib/"
             DESTINATION lib

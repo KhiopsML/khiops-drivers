@@ -148,7 +148,6 @@ if(DEFINED SKBUILD)
   install(
     TARGETS khiopsdriver_file_s3
     LIBRARY DESTINATION ${SKBUILD_DATA_DIR}/lib
-    ARCHIVE DESTINATION ${SKBUILD_DATA_DIR}/lib # lib on windows
     RUNTIME DESTINATION ${SKBUILD_SCRIPTS_DIR}) # dll on windows
   if(WIN32)
     install(CODE "
@@ -164,7 +163,6 @@ else()
   install(
     TARGETS khiopsdriver_file_s3
     LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib # lib on windows
     RUNTIME DESTINATION bin) # dll on windows
 endif()
 
