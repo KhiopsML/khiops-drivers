@@ -345,8 +345,8 @@ int ParseGcsUri(ParseUriResult *result, const std::string &gcs_uri) {
     return -1;
   }
 
-  *result = std::move(ParseUriResult{
-      gcs_uri.substr(prefix_size, pos - prefix_size), gcs_uri.substr(pos + 1)});
+  *result = ParseUriResult{
+      gcs_uri.substr(prefix_size, pos - prefix_size), gcs_uri.substr(pos + 1)};
   return 0;
 }
 
