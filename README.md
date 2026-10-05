@@ -15,9 +15,9 @@ Some functions exposed by the driver libraries mimics functions of C's standard 
 
 | Feature                           | Azure driver | GCS driver | S3 driver |
 | --------------------------------- | :----------: | :--------: | :-------: |
-| Read/write access to remote blobs | ✔            | ✔          | ✔         |
-| Read/write access to remote files | ✔            |            |           |
-| Log to file or standard streams   | ✔            | ✔          | ✔         |
+| Read/write access to remote blobs |      ✔       |     ✔      |     ✔     |
+| Read/write access to remote files |      ✔       |            |           |
+| Log to file or standard streams   |      ✔       |     ✔      |     ✔     |
 
 In addition, the Azure driver supports the Azurite storage emulator, which is limited to blob storage.
 
@@ -39,6 +39,8 @@ If Khiops is installed, the command `khiops -s` lists the installed drivers.
 
 To use the drivers you need to authenticate to the cloud storage services you want to access; see the [authentication section](#authenticating-to-cloud-storage-services) for instructions.
 
+The `driver_mkdir`, `driver_dirExists`, and `driver_rmdir` functions accept directory paths with or without a trailing `/` in all three drivers. For example, `gs://bucket/reports` and `gs://bucket/reports/` refer to the same directory. Object-storage directory markers and prefixes retain the trailing `/` internally, so operations on `reports` do not affect `reports-old`.
+
 The drivers can log to files or standard streams. This can be useful if you encounter difficulties using them. See the [logging section](#logging-to-files-or-standard-streams) for instructions.
 
 ### Authenticating to cloud storage services
@@ -52,11 +54,11 @@ The table below shows the supported methods of authentication.
 
 | Authentication method         | Azurite storage emulator | Azure cloud storage |
 | ----------------------------- | :----------------------: | :-----------------: |
-| Connection string             | ✔                        | ✔                   |
-| Environment credentials *     |                          | ✔                   |
-| Workload identity credentials |                          | ✔                   |
-| Managed identity credentials  |                          | ✔                   |
-| Azure CLI credentials         |                          | ✔                   |
+| Connection string             |            ✔             |          ✔          |
+| Environment credentials *     |                          |          ✔          |
+| Workload identity credentials |                          |          ✔          |
+| Managed identity credentials  |                          |          ✔          |
+| Azure CLI credentials         |                          |          ✔          |
 
 _* Client ID + client secret or certificate environment variables_
 
@@ -109,11 +111,11 @@ You can log information, warnings, errors and debug traces to a file using the f
 - `<driver name>_DRIVER_LOGLEVEL`: available values are `off`, `critical`, `error`, `warning`, `info`, `debug`, `trace` (they are actually the values of the _spdlog_ logging library).
 Replace `<driver name>` with the correct value depending on the driver from which you want the logs:
 
-| Driver        | `<driver name>_DRIVER_LOGFILE` | `<driver name>_DRIVER_LOGLEVEL` |
-| ------------- | ------------------------------ | ------------------------------- |
-| Azure driver  | AZURE_DRIVER_LOGFILE           | AZURE_DRIVER_LOGLEVEL           |
-| GCS driver    | GCS_DRIVER_LOGFILE             | GCS_DRIVER_LOGLEVEL             |
-| S3 driver     | S3_DRIVER_LOGFILE              | S3_DRIVER_LOGLEVEL              |
+| Driver       | `<driver name>_DRIVER_LOGFILE` | `<driver name>_DRIVER_LOGLEVEL` |
+| ------------ | ------------------------------ | ------------------------------- |
+| Azure driver | AZURE_DRIVER_LOGFILE           | AZURE_DRIVER_LOGLEVEL           |
+| GCS driver   | GCS_DRIVER_LOGFILE             | GCS_DRIVER_LOGLEVEL             |
+| S3 driver    | S3_DRIVER_LOGFILE              | S3_DRIVER_LOGLEVEL              |
 
 You can define `<driver name>_DRIVER_LOGFILE` to be `/dev/stderr` or `/dev/stdout` if you want to log to standard error or standard output, respectively.
 

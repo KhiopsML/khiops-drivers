@@ -66,7 +66,6 @@ int Check_driver_dirExists(const char *sFilePathName) {
     GetLogger()->info("Checking if directory exists at URL {}...", sFilePathName);
     if (CheckInitialized()) return -1;
     if (CheckNotNull(sFilePathName, STRINGIFY(sFilePathName), "driver_dirExists")) return -1;
-    if (CheckIsDirUrl(sFilePathName)) return -1;
     return 0;
 }
 
@@ -161,7 +160,6 @@ int Check_driver_mkdir(const char *pathname) {
     GetLogger()->info("Creating directory at URL {}...", pathname);
     if (CheckInitialized()) return -1;
     if (CheckNotNull(pathname, STRINGIFY(pathname), "driver_mkdir")) return -1;
-    if (CheckIsDirUrl(pathname)) return -1;
     return 0;
 }
 
@@ -169,7 +167,6 @@ int Check_driver_rmdir(const char *pathname) {
     GetLogger()->info("Removing directory at URL {}...", pathname);
     if (CheckInitialized()) return -1;
     if (CheckNotNull(pathname, STRINGIFY(pathname), "driver_rmdir")) return -1;
-    if (CheckIsDirUrl(pathname)) return -1;
     return 0;
 }
 

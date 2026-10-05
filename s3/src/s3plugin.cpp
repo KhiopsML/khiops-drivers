@@ -478,6 +478,13 @@ Aws::S3::Model::ListObjectsV2Outcome ListObjects(const Aws::String &bucket,
   return client->ListObjectsV2(request);
 }
 
+Aws::String NormalizeDirectoryObjectPath(Aws::String object_path) {
+  if (!object_path.empty() && object_path.back() != '/') {
+    object_path.push_back('/');
+  }
+  return object_path;
+}
+
 bool BlobDirectoryExists(const Aws::String &bucket, const Aws::String &object) {
   const auto head_object_outcome = HeadObject(bucket, object);
   if (head_object_outcome.IsSuccess()) {
@@ -907,7 +914,8 @@ int driver_dirExists(const char *sFilePathName) {
     return kFalse;
   }
 
-  return BlobDirectoryExists(names.bucket_, names.object_) ? kTrue : kFalse;
+  const auto dir_prefix = NormalizeDirectoryObjectPath(names.object_);
+  return BlobDirectoryExists(names.bucket_, dir_prefix) ? kTrue : kFalse;
 
 }
 
@@ -1860,7 +1868,8 @@ int driver_rmdir(const char *filename) {
     return kOtherFailure;
   }
 
-  return DeleteBlobDirectory(names.bucket_, names.object_) ? kOtherSuccess
+  const auto dir_prefix = NormalizeDirectoryObjectPath(names.object_);
+  return DeleteBlobDirectory(names.bucket_, dir_prefix) ? kOtherSuccess
                                                            : kOtherFailure;
 }
 
@@ -1882,7 +1891,8 @@ int driver_mkdir(const char *filename) {
     return kOtherFailure;
   }
 
-  return CreateBlobDirectory(names.bucket_, names.object_) ? kOtherSuccess
+  const auto dir_object_name = NormalizeDirectoryObjectPath(names.object_);
+  return CreateBlobDirectory(names.bucket_, dir_object_name) ? kOtherSuccess
                                                            : kOtherFailure;
 }
 

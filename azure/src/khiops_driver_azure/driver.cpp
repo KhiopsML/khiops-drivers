@@ -42,6 +42,14 @@ namespace {
 
 constexpr size_t INTERNAL_COPY_BUFFER_SIZE = 4ULL * 1024ULL * 1024ULL;
 
+// Keep directory markers and prefixes slash-terminated without requiring a slash from callers.
+string NormalizeDirectoryObjectPath(string object_path) {
+    if (!object_path.empty() && object_path.back() != '/') {
+        object_path.push_back('/');
+    }
+    return object_path;
+}
+
 vector<string> ListBlobPrefixUrls(const Azure::Core::Url &azure_url) {
     string service_url;
     string blob_container;
@@ -57,7 +65,7 @@ vector<string> ListBlobPrefixUrls(const Azure::Core::Url &azure_url) {
     }
 
     Azure::Storage::Blobs::ListBlobsOptions opts;
-    opts.Prefix = blob_prefix;
+    opts.Prefix = NormalizeDirectoryObjectPath(blob_prefix);
     vector<string> matches;
     Azure::Storage::Blobs::BlobContainerClient container_client = GetBlobContainerClient(service_url, blob_container);
     for (auto paged_blob_list = container_client.ListBlobs(opts);
@@ -71,9 +79,11 @@ vector<string> ListBlobPrefixUrls(const Azure::Core::Url &azure_url) {
     return matches;
 }
 
-int CreateBlobDirectoryMarker(const char *pathname) {
+int CreateBlobDirectoryMarker(const Azure::Core::Url &azure_url) {
+    Azure::Core::Url marker_url = azure_url;
+    marker_url.SetPath(NormalizeDirectoryObjectPath(marker_url.GetPath()));
     void *handle = nullptr;
-    if (FOpenForWriting(&handle, pathname, BLOB)) return -1;
+    if (FOpenForWriting(&handle, marker_url.GetAbsoluteUrl(), BLOB)) return -1;
     if (FClose(static_cast<FileWriter *>(handle))) return -1;
     return 0;
 }
@@ -397,7 +407,7 @@ int driver_mkdir(const char *pathname) {
                 GetLogger()->error("Cannot make directory: directory already exists.");
                 return KO;
             }
-            if (CreateBlobDirectoryMarker(pathname)) {
+            if (CreateBlobDirectoryMarker(azure_url)) {
                 GetLogger()->error("Failed to make directory.");
                 return KO;
             }
