@@ -396,11 +396,6 @@ std::string NormalizeDirectoryObjectPath(std::string object_path) {
   return object_path;
 }
 
-bool HasDirectoryTrailingSlash(const char *sFilePathName) {
-  return sFilePathName != nullptr && std::strlen(sFilePathName) > 0 &&
-         sFilePathName[std::strlen(sFilePathName) - 1] == '/';
-}
-
 // pre condition: stream is of a writing type. do not call otherwise.
 int CloseWriterStream(Handle &stream) {
   gc::StatusOr<gcs::ObjectMetadata> maybe_meta;
@@ -702,11 +697,6 @@ int driver_dirExists(const char *sFilePathName) {
     GetLogger()->error(ERR_NULL_ARG, __func__);
     return (kFalse);
   };
-  if (!HasDirectoryTrailingSlash(sFilePathName)) {
-    GetLogger()->error("Directory URL must end with '/'");
-    return kFalse;
-  }
-
   GetLogger()->debug("dirExist {}", sFilePathName);
 
   ParseUriResult parsedUri;
@@ -1540,11 +1530,6 @@ int driver_rmdir(const char *filename) {
     GetLogger()->error(ERR_NULL_ARG, __func__);
     return (kOtherFailure);
   };
-  if (!HasDirectoryTrailingSlash(filename)) {
-    GetLogger()->error("Directory URL must end with '/'");
-    return kOtherFailure;
-  }
-
   GetLogger()->debug("rmdir {}", filename);
 
   ParseUriResult names;
@@ -1590,11 +1575,6 @@ int driver_mkdir(const char *filename) {
     GetLogger()->error(ERR_NULL_ARG, __func__);
     return (kOtherFailure);
   };
-  if (!HasDirectoryTrailingSlash(filename)) {
-    GetLogger()->error("Directory URL must end with '/'");
-    return kOtherFailure;
-  }
-
   GetLogger()->debug("mkdir {}", filename);
 
   ParseUriResult names;

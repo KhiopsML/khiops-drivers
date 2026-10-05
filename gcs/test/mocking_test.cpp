@@ -281,13 +281,53 @@ TEST_F(GCSDriverTestFixture, DirExists) {
   ASSERT_EQ(driver_dirExists(nullptr), kFalse);
   ASSERT_EQ(driver_dirExists("any_name"), kFalse);
 
+  EXPECT_CALL(*mock_client, GetObjectMetadata)
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::GetObjectMetadataRequest const &req) {
+        EXPECT_EQ(req.bucket_name(), "mock_bucket");
+        EXPECT_EQ(req.object_name(), "dir/");
+        return MakeObjectMetadata(req.bucket_name(), req.object_name(), 1, 0);
+      });
   ASSERT_EQ(driver_dirExists("gs://mock_bucket/dir/"), kTrue);
+  ASSERT_EQ(driver_dirExists("gs://mock_bucket/dir"), kTrue);
 
   EXPECT_CALL(*mock_client, GetObjectMetadata)
-      .WillOnce(Return(gc::Status(gc::StatusCode::kNotFound, "not found")));
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::GetObjectMetadataRequest const &req) {
+        EXPECT_EQ(req.object_name(), "missing_dir/");
+        return gc::StatusOr<gcs::ObjectMetadata>(
+            gc::Status(gc::StatusCode::kNotFound, "not found"));
+      });
   EXPECT_CALL(*mock_client, ListObjects)
-      .WillOnce(Return<LOReturnType>(gcs::internal::ListObjectsResponse{}));
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::ListObjectsRequest const &req) {
+        EXPECT_EQ(req.GetOption<gcs::Prefix>().value(), "missing_dir/");
+        return LOReturnType(gcs::internal::ListObjectsResponse{});
+      });
   ASSERT_EQ(driver_dirExists("gs://mock_bucket/missing_dir/"), kFalse);
+  ASSERT_EQ(driver_dirExists("gs://mock_bucket/missing_dir"), kFalse);
+}
+
+TEST_F(GCSDriverTestFixture, MkdirAcceptsBothPathForms) {
+  ASSERT_EQ(driver_mkdir(nullptr), kOtherFailure);
+  ASSERT_EQ(driver_mkdir("any_name"), kOtherFailure);
+  EXPECT_CALL(*mock_client, CreateResumableUpload)
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::ResumableUploadRequest const &req) {
+        EXPECT_EQ(req.bucket_name(), "mock_bucket");
+        EXPECT_EQ(req.object_name(), "dir/");
+        return gcs::internal::CreateResumableUploadResponse{"mock_upload_id"};
+      });
+  EXPECT_CALL(*mock_client, UploadChunk)
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::UploadChunkRequest const &req) {
+        EXPECT_EQ(req.payload_size(), 0);
+        return gcs::internal::QueryResumableUploadResponse{
+            absl::nullopt, MakeObjectMetadata("mock_bucket", "dir/", 1, 0)};
+      });
+
+  ASSERT_EQ(driver_mkdir("gs://mock_bucket/dir"), kOtherSuccess);
+  ASSERT_EQ(driver_mkdir("gs://mock_bucket/dir/"), kOtherSuccess);
 }
 
 // lambda to simulate the answer to a reading request
@@ -1585,6 +1625,25 @@ ExpectDelete(gcs::testing::MockClient &client, const std::string &bucket,
                    req.object_name() == object_name;
           })))
       .WillOnce(Return(status));
+}
+
+TEST_F(GCSDriverTestFixture, RmdirAcceptsBothPathForms) {
+  ASSERT_EQ(driver_rmdir(nullptr), kOtherFailure);
+  ASSERT_EQ(driver_rmdir("any_name"), kOtherFailure);
+  for (const char *path : {"gs://mock_bucket/dir", "gs://mock_bucket/dir/"}) {
+    EXPECT_CALL(*mock_client, ListObjects)
+        .WillOnce([](gcs::internal::ListObjectsRequest const &req) {
+          EXPECT_EQ(req.bucket_name(), "mock_bucket");
+          EXPECT_EQ(req.GetOption<gcs::Prefix>().value(), "dir/");
+          return LOReturnType(MakeLOR(
+              "mock_bucket", {"dir/", "dir/nested/", "dir/nested/data.txt"},
+              {0, 0, 10}));
+        });
+    ExpectDelete(*mock_client, "mock_bucket", "dir/");
+    ExpectDelete(*mock_client, "mock_bucket", "dir/nested/");
+    ExpectDelete(*mock_client, "mock_bucket", "dir/nested/data.txt");
+    ASSERT_EQ(driver_rmdir(path), kOtherSuccess);
+  }
 }
 
 TEST_F(GCSDriverTestFixture, Remove_SingleFile) {
