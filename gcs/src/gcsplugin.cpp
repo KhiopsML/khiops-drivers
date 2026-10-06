@@ -629,6 +629,10 @@ int driver_disconnect() {
   }
   active_handles.clear();
 
+  // Release the client before curl_global_cleanup() because its destruction
+  // may use CURL resources.
+  client = gcs::Client{};
+
   // Clean up CURL
   curl_global_cleanup();
 
