@@ -1236,6 +1236,11 @@ TEST_F(GCSDriverTestFixture, Read_NFiles_NoCommonHeader) {
   // read the whole file
   test_whole_file(filesize);
 
+  test_reader->GetReader().offset_ = filesize;
+  EXPECT_CALL(*mock_client, ReadObject).Times(0);
+  EXPECT_EQ(driver_fread(buff_data, size, 1, test_reader), 0);
+  EXPECT_EQ(test_reader->GetReader().offset_, filesize);
+
   // try to read more than the whole file
   test_whole_file(filesize + 1);
 }

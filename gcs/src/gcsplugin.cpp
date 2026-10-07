@@ -143,15 +143,21 @@ int DownloadFileRangeToBuffer(long long *sizeresult,
                               const std::string &object_name, char *buffer,
                               std::int64_t start_range, std::int64_t end_range,
                               int64_t generation) {
+  // Reading exactly at EOF is a successful zero-byte read and requires no GCS request.
+  if (start_range == end_range) {
+    *sizeresult = 0;
+    return 0;
+  }
+
+  if (start_range > end_range) {
+    GetLogger()->error("Cannot read after end of file.");
+    return -1;
+  }
+
   auto reader = client.ReadObject(bucket_name, object_name,
                                   gcs::ReadRange(start_range, end_range),
                                   gcs::IfGenerationMatch(generation));
 
-  if (start_range >= end_range) {
-    GetLogger()->error("Cannot read after end of file.");
-    return -1;
-  }
-  
   if (!reader) {
     auto &o_status = reader.status();
     if (o_status.code() == gc::StatusCode::kFailedPrecondition) {
