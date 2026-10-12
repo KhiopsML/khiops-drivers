@@ -68,6 +68,7 @@ HandleContainer active_handles;
 static const char *ERR_NOT_CONNECTED = "Driver is not connected";
 static const char *ERR_NULL_ARG = "Error passing null pointer to {}";
 static const char *ERR_URL_PARSING = "Error parsing URL";
+constexpr int kObjectNotFound = -2;
 
 void InitHandle(Handle &h, ReaderPtr &&r_ptr) {
   h.var.reader = std::move(r_ptr);
@@ -384,11 +385,11 @@ int ListObjects(gcs::ListObjectsReader *result, const std::string &bucket_name,
   auto list = client.ListObjects(bucket_name, gcs::MatchGlob{object_name});
   auto first = list.begin();
   if (first == list.end()) {
-    return -2;
+    return kObjectNotFound;
   }
   if (!first->ok()) {
     if (first->status().code() == gc::StatusCode::kNotFound)
-      return -2;
+      return kObjectNotFound;
     return -1;
   }
   *result = std::move(list);
@@ -687,7 +688,7 @@ int driver_fileExists(const char *sFilePathName) {
   google::cloud::storage::v2_37::ListObjectsReader objects;
   int code;
   if ((code = ListObjects(&objects, parsedUri.bucket, parsedUri.object))) {
-    if (code == -2)
+    if (code == kObjectNotFound)
       return kFalse;
     GetLogger()->error("Error checking if file exists");
     return kFalse;
@@ -839,8 +840,9 @@ SelectObjectsSubset(std::vector<std::string> const &all_objects) {
 int GetFileSize(long long *sizeresult, const std::string &bucket_name,
                 const std::string &object_name) {
   google::cloud::storage::v2_37::ListObjectsReader objects;
-  if (ListObjects(&objects, bucket_name, object_name)) {
-    return -1;
+  const int code = ListObjects(&objects, bucket_name, object_name);
+  if (code) {
+    return code;
   }
 
   auto list_it = objects.begin();
@@ -930,7 +932,11 @@ long long int driver_getFileSize(const char *filename) {
   }
 
   long long size;
-  if (GetFileSize(&size, parsedUri.bucket, parsedUri.object)) {
+  const int code = GetFileSize(&size, parsedUri.bucket, parsedUri.object);
+  if (code == kObjectNotFound) {
+    return kFailure;
+  }
+  if (code) {
     GetLogger()->error("Error getting file size");
     return kFailure;
   }
@@ -944,8 +950,9 @@ int MakeReaderPtr(ReaderPtr *result, std::string bucketname,
   std::vector<long long> cumulative_sizes;
 
   google::cloud::storage::v2_37::ListObjectsReader objects;
-  if (ListObjects(&objects, bucketname, objectname)) {
-    return -1;
+  const int code = ListObjects(&objects, bucketname, objectname);
+  if (code) {
+    return code;
   }
 
   const auto list_end = objects.end();
@@ -1045,8 +1052,10 @@ int MakeWriterPtr(WriterPtr *result, std::string bucketname,
 int RegisterReaderStream(Handle **result, std::string &&bucket,
                          std::string &&object) {
   ReaderPtr readerPtr;
-  if (MakeReaderPtr(&readerPtr, std::move(bucket), std::move(object))) {
-    return -1;
+  const int code = MakeReaderPtr(&readerPtr, std::move(bucket),
+                                 std::move(object));
+  if (code) {
+    return code;
   }
 
   *result = InsertReaderHandle(std::move(readerPtr));
@@ -1141,7 +1150,7 @@ void *driver_fopen(const char *filename, char mode) {
     google::cloud::storage::v2_37::ListObjectsReader objects;
     int c;
     if ((c = ListObjects(&objects, names.bucket, names.object))) {
-      if (c == -2) {
+      if (c == kObjectNotFound) {
         // file doesn't exist, fallback to write mode
         registration_code = RegisterWriter(&handle, std::move(names.bucket),
                                            std::move(names.object));
@@ -1184,7 +1193,11 @@ void *driver_fopen(const char *filename, char mode) {
   }
 
   if (registration_code) {
-    GetLogger()->error(err_msg);
+    if (registration_code == kObjectNotFound) {
+      GetLogger()->error("No such file or directory");
+    } else {
+      GetLogger()->error(err_msg);
+    }
     return nullptr;
   }
 
@@ -1504,7 +1517,7 @@ int driver_remove(const char *filename) {
   google::cloud::storage::v2_37::ListObjectsReader objects;
   int c;
   if ((c = ListObjects(&objects, names.bucket, names.object))) {
-    if (c == -2) {
+    if (c == kObjectNotFound) {
       return kOtherSuccess; // aucun objet correspondant : rien à faire
     }
     GetLogger()->error("Error listing objects to delete");
