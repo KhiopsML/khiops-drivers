@@ -27,6 +27,7 @@ spdlog::logger *GetLogger(const std::string &logger_name, const string &logfile_
     logstringstream = ostringstream("");
     stringstreamsink = make_shared<spdlog::sinks::ostream_sink_st>(logstringstream);
     stringstreamsink->set_level(spdlog::level::err);
+    stringstreamsink->set_pattern("%v");
     sinks.push_back(stringstreamsink);
 
     /*** Create the file logger if configured and add it to the vector of sinks. ***/
@@ -50,6 +51,8 @@ string GetLastError() {
   string logstring = logstringstream.str();
   logstringstream.str("");
   logstringstream.clear();
+  while (!logstring.empty() && logstring.back() == '\n')
+    logstring.pop_back();
   return logstring;
 }
 

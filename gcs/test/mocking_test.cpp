@@ -366,6 +366,24 @@ TEST_F(GCSDriverTestFixture, GetFileSize) {
             static_cast<long long>(expected_size));
 }
 
+TEST_F(GCSDriverTestFixture, OpenMissingFileReportsNotFound) {
+  driver_getlasterror();
+
+  EXPECT_CALL(*mock_client, ListObjects)
+      .Times(2)
+      .WillRepeatedly([](gcs::internal::ListObjectsRequest const &) {
+        return LOReturnType(gcs::internal::ListObjectsResponse{});
+      });
+
+  ASSERT_EQ(driver_getFileSize("gs://mock_bucket/missing_file"), -1);
+  ASSERT_EQ(driver_getlasterror(), nullptr);
+
+  ASSERT_EQ(driver_fopen("gs://mock_bucket/missing_file", 'r'), nullptr);
+  const char *last_error = driver_getlasterror();
+  ASSERT_NE(last_error, nullptr);
+  EXPECT_EQ(std::string(last_error), "No such file or directory");
+}
+
 // tests for multifile cases
 TEST_F(GCSDriverTestFixture, GetFileSizeMultifile) {
 
