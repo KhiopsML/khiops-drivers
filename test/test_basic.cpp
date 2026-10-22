@@ -65,11 +65,22 @@ TEST_F(StorageTest, FileExistsNonExistentfile) {
 }
 
 TEST_F(StorageTest, DirExists) {
-  ASSERT_EQ(driver_dirExists(url.Dir().c_str()), kTrue);
+  const std::string directory = url.Dir();
+  ASSERT_EQ(driver_dirExists(directory.c_str()), kTrue);
+  ASSERT_EQ(driver_dirExists(directory.substr(0, directory.size() - 1).c_str()), kTrue);
 }
 
 TEST_F(StorageTest, DirExistsNonExistentDir) {
-  ASSERT_EQ(driver_dirExists(url.InexistantDir().c_str()), kFalse);
+  const std::string directory = url.InexistantDir();
+  ASSERT_EQ(driver_dirExists(directory.c_str()), kFalse);
+  ASSERT_EQ(driver_dirExists(directory.substr(0, directory.size() - 1).c_str()), kFalse);
+}
+
+TEST_F(StorageTest, DirExistsDoesNotMatchFile) {
+  std::string file;
+  this->CreateRandomEmptyFile(&file);
+  ASSERT_EQ(driver_dirExists(file.c_str()), kFalse);
+  ASSERT_EQ(driver_dirExists((file + "/").c_str()), kFalse);
 }
 
 #ifndef _WIN32

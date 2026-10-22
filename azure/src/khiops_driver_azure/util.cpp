@@ -310,9 +310,9 @@ int GetParentDir(Azure::Storage::Files::Shares::ShareDirectoryClient *result, co
 int GetFileClient(Azure::Storage::Files::Shares::ShareFileClient *result, const std::string &url) {
     if (CheckIsNotGlobbingPattern(url)) return -1;
     if (GetState()->is_using_connection_string) {
-        *result = std::move(Azure::Storage::Files::Shares::ShareFileClient(url, GetState()->connection_string_credential, MakeShareClientOptions()));
+        *result = Azure::Storage::Files::Shares::ShareFileClient(url, GetState()->connection_string_credential, MakeShareClientOptions());
     } else {
-        *result = std::move(Azure::Storage::Files::Shares::ShareFileClient(url, GetState()->no_connection_string_credential, MakeShareClientOptions()));
+        *result = Azure::Storage::Files::Shares::ShareFileClient(url, GetState()->no_connection_string_credential, MakeShareClientOptions());
     }
     return 0;
 }

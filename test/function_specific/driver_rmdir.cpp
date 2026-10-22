@@ -38,3 +38,29 @@ TEST_F(DriverRmdirTest, RecursiveRemovalOK) {
     ASSERT_EQ(driver_dirExists((dir_root + "b/ba/bab/").c_str()), kFalse);
     ASSERT_EQ(driver_dirExists((dir_root + "b/bb/").c_str()), kFalse);
 }
+
+// Removing a directory without a trailing slash must preserve similarly named siblings.
+TEST_F(DriverRmdirTest, WithoutTrailingSlashKeepsSiblingPrefix) {
+    string parent_dir; this->CreateRandomDir(&parent_dir);
+    const string target_dir = parent_dir + "reports/";
+    const string slashless_dir = parent_dir + "reports";
+    const string sibling_dir = parent_dir + "reports-old/";
+    const string sibling_file = parent_dir + "reports.txt";
+    const string nested_dir = target_dir + "nested/";
+    const string nested_file = nested_dir + "data.txt";
+    this->CreateDirAt(target_dir);
+    this->CreateDirAt(nested_dir);
+    this->CreateEmptyFileAt(nested_file);
+    this->CreateDirAt(sibling_dir);
+    this->CreateEmptyFileAt(sibling_file);
+
+    ASSERT_EQ(driver_dirExists(target_dir.c_str()), kTrue);
+    ASSERT_EQ(driver_dirExists(slashless_dir.c_str()), kTrue);
+    ASSERT_EQ(driver_rmdir(slashless_dir.c_str()), kOtherSuccess);
+    ASSERT_EQ(driver_dirExists(target_dir.c_str()), kFalse);
+    ASSERT_EQ(driver_dirExists(slashless_dir.c_str()), kFalse);
+    ASSERT_EQ(driver_dirExists(nested_dir.c_str()), kFalse);
+    ASSERT_EQ(driver_fileExists(nested_file.c_str()), kFalse);
+    ASSERT_EQ(driver_dirExists(sibling_dir.c_str()), kTrue);
+    ASSERT_EQ(driver_fileExists(sibling_file.c_str()), kTrue);
+}
