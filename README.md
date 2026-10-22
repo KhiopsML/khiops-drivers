@@ -61,7 +61,7 @@ The table below shows the supported methods of authentication.
 _* Client ID + client secret or certificate environment variables_
 
 The documentation of the Azure CLI is [here](https://learn.microsoft.com/en-us/cli/azure/?view=azure-cli-latest).
-Its most basic authentication usage is a simple shell command: `az login`.
+Its most basic authentication usage is a simple shell command: `az login --tenant <tenant_id> --subscription <subscription_name>` (for running test : subscription_name = ino-khiops-drivers-1-exp).
 
 #### Authenticating to Google Cloud Storage services
 
@@ -70,6 +70,7 @@ In order to access the data stored on a GCS bucket, in most cases a valid authen
 In order to setup your local environment with these credentials (assuming you have installed the [gcloud CLI](https://cloud.google.com/sdk/docs/install)), you will have to do the following:
 
     gcloud init
+    gcloud auth login
     gcloud auth application-default login
 
 Voilà! You now have access to your data in GCS buckets!
@@ -237,3 +238,28 @@ STORAGE_DRIVER_TEST_URL_PREFIX=http://localhost:10000/devstoreaccount1/data-test
 You may have to adapt the BlobEndpoint part of the `AZURE_STORAGE_CONNECTION_STRING` environment variable and also the `STORAGE_DRIVER_TEST_URL_PREFIX` environment variable if you configured Azurite with different values than its default configuration.
 
 Instead of the `azure-ninja-dbg-blob` and `azure-ninja-rel-blob` presets (not mentioning the file storage service presets because this kind of storage is not supported by the emulator), you can use `azure-ninja-dbg` and `azure-ninja-rel` because you will not need the predefined `STORAGE_DRIVER_TEST_URL_PREFIX` that points to the real Azure cloud storage.
+
+#### Developer documentation
+##### SDK documentation
+
+###### AZURE SDK documentation
+[Azure Storage SDK for C++](https://learn.microsoft.com/en-us/cpp/api/overview/azure/storage?view=azure-cpp)
+[Azure Storage Blobs client library for C](https://learn.microsoft.com/en-us/cpp/api/overview/azure/storage-blobs-readme?view=azure-cpp)
+[Azure Storage Files Shares client library for C](https://learn.microsoft.com/en-us/cpp/api/overview/azure/storage-files-shares-readme?view=azure-cpp)
+[Error handling in the Azure SDK for C++](https://learn.microsoft.com/en-us/azure/developer/cpp/sdk/fundamentals/errors)
+[Azure SDK Core Library for C++ Troubleshooting](https://learn.microsoft.com/en-us/cpp/api/overview/azure/core-readme?view=azure-cpp#troubleshooting)
+[Azure Storage samples using v12 C++ client libraries](https://learn.microsoft.com/en-us/azure/storage/common/storage-samples-c-plus-plus)
+
+###### GCS SDK documentation
+[Google Cloud Storage C++ Client Library and examples link](https://docs.cloud.google.com/cpp/docs/reference/storage/latest)
+[Google Cloud SDK C++ Client libraries Class Client and examples](https://docs.cloud.google.com/cpp/docs/reference/storage/latest/classgoogle_1_1cloud_1_1storage_1_1Client#classgoogle_1_1cloud_1_1storage_1_1Client_1a8918b5f338d91607b06d5107965ed35e)
+[Google Cloud SDK C++ Client libraries Error Handling](https://docs.cloud.google.com/cpp/docs/reference/storage/latest/storage-error)
+[Google Cloud Storage C++ Client Library and quickstart](https://github.com/googleapis/google-cloud-cpp/tree/main/google/cloud/storage)
+[Google Cloud IDS C++ Client Library Environment Variables](https://docs.cloud.google.com/cpp/docs/reference/ids/latest/ids-env)
+
+###### AWS SDK documentation
+[AWS SDK for C++](https://docs.aws.amazon.com/sdk-for-cpp/latest/api/aws-cpp-sdk-s3/html/)
+[Aws::S3 Namespace Reference](https://docs.aws.amazon.com/sdk-for-cpp/latest/api/aws-cpp-sdk-s3/html/namespace_aws_1_1_s3.html)
+[Amazon S3 examples using SDK for C++](https://docs.aws.amazon.com/code-library/latest/ug/cpp_1_s3_code_examples.html)
+[Amazon S3 code examples using the AWS SDK for C++](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/examples-s3.html)
+[Handling errors in the AWS SDK for C++](https://docs.aws.amazon.com/sdk-for-cpp/v1/developer-guide/error-handling.html)

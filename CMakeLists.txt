@@ -29,6 +29,7 @@ macro(_driver_extra_cmake_args _driver _out_var)
   list(APPEND ${_out_var}
     "-DCMAKE_TOOLCHAIN_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${_driver}/vcpkg/scripts/buildsystems/vcpkg.cmake"
     "-DVCPKG_MANIFEST_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${_driver}"
+    "-DVCPKG_OVERLAY_TRIPLETS=${CMAKE_CURRENT_SOURCE_DIR}/${_driver}/cmake/triplets"
   )
 endmacro()
 
@@ -156,6 +157,12 @@ else()
 
   if(KHIOPS_DRIVER STREQUAL "")
     message(FATAL_ERROR "KHIOPS_DRIVER must be set to one of: azure, gcs, s3")
+  endif()
+
+  if(VCPKG_TARGET_TRIPLET STREQUAL "x64-osx")
+    # Keep vcpkg dependency headers ahead of compiler default locations such as /usr/local/include.
+    # used to fix conflict between fmt library version (fmt:x64-osx@11.2.0) installed by vcpkg (see : `cmake --trace`) and version (fmt 12.2.0) installed on macOSX using brew (fmt used by node and openspec - see : `brew list --versions fmt && brew uses --installed fmt`).
+    set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON)
   endif()
 
   if(KHIOPS_DRIVER STREQUAL "azure")
