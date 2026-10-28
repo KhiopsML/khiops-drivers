@@ -26,7 +26,7 @@ message(STATUS "Building Khiops driver version: ${DRIVER_VERSION} (CMake version
 project(
   khiops-gcs
   LANGUAGES CXX
-  VERSION ${DRIVER_VERSION})
+  VERSION ${VERSION})
 
 # CMake policy for MSVC runtime selection
 if(POLICY CMP0091)
@@ -201,42 +201,3 @@ else()
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin) # dll on windows
 endif()
-
-set(CPACK_PACKAGE_VENDOR Orange)
-set(CPACK_PACKAGE_HOMEPAGE_URL https://khiops.org)
-set(CPACK_RESOURCE_FILE_LICENSE "${PROJECT_SOURCE_DIR}/../LICENSE")
-set(CPACK_PACKAGE_VENDOR "Orange")
-set(CPACK_PACKAGE_CONTACT "Khiops Team <khiops.team@orange.com>")
-set(CPACK_SOURCE_IGNORE_FILES .git)
-set(CPACK_PACKAGE_DESCRIPTION "This driver allows Khiops to access the Google Cloud storage.")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "GCS driver for the Khiops tool")
-set(CPACK_PACKAGE_NAME "khiops-driver-gcs")
-
-set(CPACK_VERBATIM_VARIABLES YES)
-set(CPACK_PACKAGE_INSTALL_DIRECTORY ${CPACK_PACKAGE_NAME})
-set(CPACK_OUTPUT_FILE_PREFIX "${CMAKE_BINARY_DIR}/packages")
-
-# ########### ARCHIVE Generator #############################
-set(CPACK_ARCHIVE_COMPONENT_INSTALL ON)
-set(CPACK_ARCHIVE_FILE_NAME khiops-driver-gcs-${PROJECT_VERSION})
-
-# ########### DEB Generator #############################
-set(CPACK_DEBIAN_PACKAGE_RELEASE 1)
-set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
-set(CPACK_DEB_COMPONENT_INSTALL YES)
-set(CPACK_DEBIAN_PACKAGE_SECTION "math")
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_PACKAGE_GENERATE_SHLIBS ON)
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS_PRIVATE_DIRS ${CMAKE_BINARY_DIR}/lib/)
-set(CPACK_DEBIAN_PACKAGE_RECOMMENDS "khiops")
-set(CPACK_DEBIAN_PACKAGE_CONTROL_STRICT_PERMISSION TRUE)
-
-# ########### RPM Generator #############################
-set(CPACK_RPM_COMPONENT_INSTALL ON)
-set(CPACK_RPM_PACKAGE_LICENSE BSD-3-Clause)
-set(CPACK_RPM_PACKAGE_GROUP "Applications/Engineering")
-set(CPACK_RPM_PACKAGE_VENDOR Orange)
-set(CPACK_RPM_KHIOPS_PACKAGE_AUTOREQ ON)
-set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
-
-include(CPack)
