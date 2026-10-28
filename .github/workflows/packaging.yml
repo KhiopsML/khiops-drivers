@@ -74,8 +74,10 @@ jobs:
           - { os: ubuntu-latest, custom-image-suffix: ubuntu20.04 }
           - { os: ubuntu-latest, custom-image-suffix: ubuntu22.04 }
           - { os: ubuntu-latest, custom-image-suffix: ubuntu24.04 }
+          - { os: ubuntu-latest, custom-image-suffix: ubuntu26.04 }
           - { os: ubuntu-24.04-arm, custom-image-suffix: ubuntu22.04-arm }
           - { os: ubuntu-24.04-arm, custom-image-suffix: ubuntu24.04-arm }
+          - { os: ubuntu-24.04-arm, custom-image-suffix: ubuntu26.04-arm }
     container:
       image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.custom-image-suffix }}:latest
     steps:
@@ -155,11 +157,13 @@ jobs:
         include:
           - { os: ubuntu-latest, image: debian:12 }
           - { os: ubuntu-latest, image: debian:13 }
-          - { os: ubuntu-latest, image: ubuntu:20.04  }
-          - { os: ubuntu-latest, image: ubuntu:22.04  }
-          - { os: ubuntu-latest, image: ubuntu:24.04  }
-          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:22.04  }
-          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:24.04  }
+          - { os: ubuntu-latest, image: ubuntu:20.04 }
+          - { os: ubuntu-latest, image: ubuntu:22.04 }
+          - { os: ubuntu-latest, image: ubuntu:24.04 }
+          - { os: ubuntu-latest, image: ubuntu:26.04 }
+          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:22.04 }
+          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:24.04 }
+          - { os: ubuntu-24.04-arm, image: ubuntu:26.04 }
     container:
       image: ${{ matrix.image }}
     permissions:
