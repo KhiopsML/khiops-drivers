@@ -196,7 +196,7 @@ jobs:
       # [Azure] Not on a tag => authenticate to cloud services using Workload Identity Federation.
       - name: Authenticate to cloud services using WIF [Azure]
         uses: azure/login@v2.3.0
-        if: matrix.driver == 'azure' && github.ref_type != 'tag'
+        if: matrix.driver == 'azure' && github.ref_type != 'tag' && github.ref == 'refs/heads/main'
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -204,7 +204,7 @@ jobs:
 
       # [Azure] On a tag => authenticate to cloud services using a connection string environment variable.
       - name: Authenticate to cloud services using connection string [Azure]
-        if: matrix.driver == 'azure' && github.ref_type == 'tag'
+        if: matrix.driver == 'azure' && (github.ref_type == 'tag' || github.ref != 'refs/heads/main')
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
       # [Azure] Test in release configuration with cloud blob storage.
