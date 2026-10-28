@@ -67,18 +67,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: &deb-matrix
+      matrix:
         include:
-          - { os: ubuntu-latest, image: debian11 }
-          - { os: ubuntu-latest, image: debian12 }
-          - { os: ubuntu-latest, image: debian13 }
-          - { os: ubuntu-latest, image: ubuntu20.04 }
-          - { os: ubuntu-latest, image: ubuntu22.04 }
-          - { os: ubuntu-latest, image: ubuntu24.04 }
-          - { os: ubuntu-24.04-arm, image: ubuntu22.04-arm }
-          - { os: ubuntu-24.04-arm, image: ubuntu24.04-arm }
+          - { os: ubuntu-latest, custom-image-suffix: debian11 }
+          - { os: ubuntu-latest, custom-image-suffix: debian12 }
+          - { os: ubuntu-latest, custom-image-suffix: debian13 }
+          - { os: ubuntu-latest, custom-image-suffix: ubuntu20.04 }
+          - { os: ubuntu-latest, custom-image-suffix: ubuntu22.04 }
+          - { os: ubuntu-latest, custom-image-suffix: ubuntu24.04 }
+          - { os: ubuntu-24.04-arm, custom-image-suffix: ubuntu22.04-arm }
+          - { os: ubuntu-24.04-arm, custom-image-suffix: ubuntu24.04-arm }
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.image }}:latest
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.custom-image-suffix }}:latest
     steps:
       - name: Install tools
         run: |
@@ -152,9 +152,18 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: *deb-matrix
+      matrix:
+        include:
+          - { os: ubuntu-latest, image: debian:11 }
+          - { os: ubuntu-latest, image: debian:12 }
+          - { os: ubuntu-latest, image: debian:13 }
+          - { os: ubuntu-latest, image: ubuntu:20.04  }
+          - { os: ubuntu-latest, image: ubuntu:22.04  }
+          - { os: ubuntu-latest, image: ubuntu:24.04  }
+          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:22.04  }
+          - { os: ubuntu-24.04-arm, image: arm64v8/ubuntu:24.04  }
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.image }}:latest
+      image: ${{ matrix.image }}
     permissions:
       contents: read
       packages: read
@@ -302,12 +311,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: &rpm-matrix
-        rocky_version:
-          - '9'
-          - '10'
+      matrix:
+        custom-image-suffix:
+          - rocky9
+          - rocky10
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-rocky${{ matrix.rocky_version }}:latest
+      image: ghcr.io/khiopsml/khiops/khiopsdev-${{ matrix.custom-image-suffix }}:latest
     steps:
       - name: Install packages
         run: |
@@ -381,9 +390,12 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix: *rpm-matrix
+      matrix:
+        include:
+          - { image: rockylinux:9, rocky_version: '9' }
+          - { image: rockylinux/rockylinux:10, rocky_version: '10' }
     container:
-      image: ghcr.io/khiopsml/khiops/khiopsdev-rocky${{ matrix.rocky_version }}:latest
+      image: ${{ matrix.image }}
     permissions:
       contents: read
       packages: read
