@@ -5,17 +5,19 @@
 #
 # The graph of job execution is the following:
 #
-#   build-deb ----------> test-deb ---> release-deb
-#
-#   build-rpm ----------> test-rpm ---> release-rpm
-#
-#   build-pip-sdist --+             +-> release-pip-to-testpypi
-#                     |             |
-#                     +-> test-pip -+
-#                     |             |
-#   build-pip-wheels -+             +-> release-pip-to-pypi
-#
-#   build-zip ----------> test-zip ---> release-zip
+#                  +-> build-deb ----------> test-deb ---> release-deb
+#                  |
+#                  +-> build-rpm ----------> test-rpm ---> release-rpm
+#                  |
+#                  +-> build-pip-sdist --+             +-> release-pip-to-testpypi
+#                  |                     |             |
+#   check-version -+                     |             |
+#                  |                     +-> test-pip -+
+#                  |                     |             |
+#                  |                     |             |
+#                  +-> build-pip-wheels -+             +-> release-pip-to-pypi
+#                  |
+#                  +-> build-zip ----------> test-zip ---> release-zip
 #
 # Notes:
 #   - Each build or test job will only run if the input "package_format" is set to "all" or to the corresponding package format.
@@ -61,9 +63,32 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
+  # Check that the ref type is not a tag or that the tag matches the version contained in src/khiops_driver_common/version.hpp.
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fetch version file
+        uses: actions/checkout@v7
+        with:
+          sparse-checkout: src/khiops_driver_common/version.hpp
+          sparse-checkout-cone-mode: false
+
+      - name: Check version
+        run: |
+          if ! SOURCE_VERSION=$(sed -nE 's/#define DRIVER_VERSION "([^"]+)"/\1/; t found; $ q1; d; :found; p; q0' src/khiops_driver_common/version.hpp); then
+            echo "::error::Failed to parse version in file src/khiops_driver_common/version.hpp."
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" = 'tag' && "$GITHUB_REF_NAME" != "$SOURCE_VERSION" ]]; then
+            echo "::error::Incompatible source version '$SOURCE_VERSION' with tag '$GITHUB_REF_NAME'. Either change the tag to match the source version or modify the DRIVER_VERSION macro in src/khiops_driver_common/version.hpp."
+            exit 1
+          fi
+          echo "Version '$SOURCE_VERSION' OK."
+
   # Produce the deb package.
   build-deb:
     if: inputs.package_format == 'all' || inputs.package_format == 'deb'
+    needs: check-version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -310,6 +335,7 @@ jobs:
   # Produce the rpm package.
   build-rpm:
     if: inputs.package_format == 'all' || inputs.package_format == 'rpm'
+    needs: check-version
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -538,6 +564,7 @@ jobs:
   # Produce the source distribution of the pip package.
   build-pip-sdist:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
+    needs: check-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -556,6 +583,7 @@ jobs:
   # Produce the binary distributions (wheels) of the pip package.
   build-pip-wheels:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
+    needs: check-version
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -759,6 +787,7 @@ jobs:
   # Produce the zip package for Windows.
   build-zip:
     if: inputs.package_format == 'all' || inputs.package_format == 'zip'
+    needs: check-version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
