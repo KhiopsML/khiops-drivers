@@ -988,7 +988,6 @@ jobs:
 
   # Publish a table of all run artifacts in the workflow summary.
   artifacts-summary:
-    if: always()
     needs:
       - build-deb
       - build-rpm
