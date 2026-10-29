@@ -63,7 +63,6 @@ env:
   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
 jobs:
-  # Check that the ref type is not a tag or that the tag matches the version contained in src/khiops_driver_common/version.hpp.
   check-version:
     runs-on: ubuntu-latest
     steps:
