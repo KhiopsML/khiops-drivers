@@ -36,7 +36,11 @@ target_include_directories(
   PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/src
   PRIVATE ${AWSSDK_INCLUDE_DIRS}
   PRIVATE ${${PROJECT_NAME}_SOURCE_DIR}/../src)
-target_link_libraries(s3_test PRIVATE ${AWSSDK_LIBRARIES})
+
+# on macOSX : do not link statically with the AWS SDK libraries as, when running s3_test, it will end with 2 AWS SDK instances : one libkhiopsdriver_file_s3.dylib and another one in s3_test
+if(NOT VCPKG_TARGET_TRIPLET STREQUAL "x64-osx")
+  target_link_libraries(s3_test PRIVATE ${AWSSDK_LIBRARIES})
+endif ()
 
 target_link_libraries(s3_test PRIVATE GTest::gtest GTest::gmock
                                       GTest::gmock_main khiopsdriver_file_s3)
