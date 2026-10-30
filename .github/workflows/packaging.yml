@@ -256,7 +256,7 @@ jobs:
 
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
-        uses: azure/login@v2.3.0
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -267,7 +267,7 @@ jobs:
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
       - name: Authenticate to GCS cloud services
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
@@ -319,7 +319,7 @@ jobs:
           pattern: deb-*
           merge-multiple: true
 
-      - uses: ncipollo/release-action@v1.14.0
+      - uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: '*.deb'
@@ -485,7 +485,7 @@ jobs:
 
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
-        uses: azure/login@v2.3.0
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -496,7 +496,7 @@ jobs:
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
       - name: Authenticate to GCS cloud services
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
@@ -548,7 +548,7 @@ jobs:
           pattern: rpm-*
           merge-multiple: true
 
-      - uses: ncipollo/release-action@v1.14.0
+      - uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: '*.rpm'
@@ -692,7 +692,7 @@ jobs:
 
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
-        uses: azure/login@v2.3.0
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -703,7 +703,7 @@ jobs:
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
       - name: Authenticate to GCS cloud services
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
@@ -911,7 +911,7 @@ jobs:
 
       - name: Authenticate to Azure cloud services through WIF
         if: github.ref_type != 'tag'
-        uses: azure/login@v2.3.0
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -922,7 +922,7 @@ jobs:
         run: echo "AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" >> "$GITHUB_ENV"
 
       - name: Authenticate to GCS cloud services
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
           workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
@@ -973,7 +973,7 @@ jobs:
         with:
           name: zip-windows
 
-      - uses: ncipollo/release-action@v1.14.0
+      - uses: ncipollo/release-action@v1
         with:
           allowUpdates: true
           artifacts: '*.zip'
@@ -999,7 +999,7 @@ jobs:
       contents: read
     steps:
       - name: Publish artifact links in Job Summary
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const { owner, repo } = context.repo;
