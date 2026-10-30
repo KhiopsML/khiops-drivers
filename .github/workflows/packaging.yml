@@ -638,9 +638,9 @@ jobs:
           path: wheelhouse
           merge-multiple: true
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
-          python-version: '3.9'
+          python-version: '3.15.2'
 
       - name: Create virtual env
         run: python -m venv venv
@@ -855,9 +855,9 @@ jobs:
           name: zip-windows
           path: zip-package
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
-          python-version: '3.9'
+          python-version: '3.15.2'
 
       - name: Create virtual env
         run: python -m venv venv
