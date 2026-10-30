@@ -8,7 +8,6 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "khiops-drivers"
 readme = "README.md"
-requires-python = ">=3.9"
 license = "BSD-3-Clause-Clear"
 license-files = ["LICENSE"]
 maintainers = [{name = "Khiops Team", email = "khiops.team@orange.com"}]
