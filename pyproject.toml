@@ -2,7 +2,7 @@
 # as a single pip package named "khiops-drivers".
 
 [build-system]
-requires = ["scikit-build-core>=0.11.6"]
+requires = ["scikit-build-core>=1.1.1"]
 build-backend = "scikit_build_core.build"
 
 [project]
