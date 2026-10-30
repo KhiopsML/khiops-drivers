@@ -69,7 +69,7 @@ description.regex = '(?x) \# \s+ (?P<description> Khiops \s+ Drivers [^\n]*)'
 description.result = "{description}"
 
 [tool.cibuildwheel]
-build = "cp39-*"
+build = "cp311-*"
 skip = "*musllinux*"
 archs = "auto64"
 
