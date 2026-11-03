@@ -28,7 +28,7 @@
 #     This job exists because the GitHub web interface does not always list the artifacts...
 #     It will be triggered after all build-* jobs complete.
 
-name: packaging
+name: package
 on:
   workflow_dispatch:
     inputs:

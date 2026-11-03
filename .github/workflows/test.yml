@@ -31,7 +31,7 @@
 #     - If not on a tag, Release-configuration tests authenticate to the cloud services using Workload Identity Federation.
 #     - If on a tag, Release-configuration tests authenticate to the cloud services using a connection string environment variable.
 
-name: hosted-ninja-vcpkg_submod
+name: test
 on:
   push:
     branches:

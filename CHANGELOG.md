@@ -10,14 +10,20 @@
 
   > Previously, suffixes were allowed, but, with the exception of Python packaging, they were removed from the package version numbers.
 
-- The container images used to run DEB and RPM package tests (`test-deb` and `test-rpm` jobs of `packaging.yml` workflow) are now generic images instead of specific KhiopsML build images.
+- Removed unused CI workflow `hosted-pure-workflow.yml`.
+
+- Renamed CI workflow `hosted-ninja-vcpkg_submod` to `test`.
+
+- Renamed CI workflow `packaging` to `package`.
+
+- The container images used to run DEB and RPM package tests (`test-deb` and `test-rpm` jobs of `package.yml` workflow) are now generic images instead of specific KhiopsML build images.
 
 - Package generation now starts by checking the version number.
 
   > We check that the version number is in the file *src/khiops_driver_common/version.hpp*.
   > Moreover, if we are on a tag, we check that the tag name is equal to the version number that is in the file.
 
-- Custom artifact display (`artifacts-summary` job of `packaging.yml` workflow) is now executed only if all `build-*` jobs succeeded.
+- Custom artifact display (`artifacts-summary` job of `package.yml` workflow) is now executed only if all `build-*` jobs succeeded.
 
   > Previously, this job was always executed, even in case part of the `build-*` jobs failed, which was not necessarily useful.
   
@@ -31,7 +37,7 @@
 
 - Updated all GitHub actions which had a newer version available.
 
-- Updated the Python version used in CI jobs of the `packaging.yml` workflow to `3.15.2`.
+- Updated the Python version used in CI jobs of the `package.yml` workflow to `3.15.2`.
 
   > Python is used in the `test-pip` job to create a virtual environment and to install Khiops Core and Khiops drivers.
 
