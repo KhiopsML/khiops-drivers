@@ -11,6 +11,11 @@ endif()
 
 cmake_minimum_required(VERSION 3.20)
 
+if(VCPKG_TARGET_TRIPLET STREQUAL "x64-osx")
+  # Keep vcpkg dependency headers ahead of compiler default locations such as /usr/local/include.
+  set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON)
+endif ()
+
 # Enforce c++14 standard.
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

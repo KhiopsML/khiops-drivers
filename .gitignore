@@ -31,6 +31,9 @@
 *.out
 *.app
 
+# IDEs
+.idea
+
 vcpkg_installed/
 builds/
 build/
