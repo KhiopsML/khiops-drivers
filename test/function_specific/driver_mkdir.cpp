@@ -21,3 +21,16 @@ TEST_F(DriverMkdirTest, SimplestCaseOK) {
     // Make sure the remote directory now exists.
     ASSERT_EQ(driver_dirExists(created_dir.c_str()), kTrue) << "Remote directory not found after its creation.";
 }
+
+TEST_F(DriverMkdirTest, WithoutTrailingSlashOK) {
+    const string created_dir = this->url.NewRandomDir();
+    const string slashless_dir = created_dir.substr(0, created_dir.size() - 1);
+    ASSERT_EQ(driver_dirExists(slashless_dir.c_str()), kFalse);
+    this->PlanDirCleanup(created_dir);
+    ASSERT_EQ(driver_mkdir(slashless_dir.c_str()), kOtherSuccess);
+    ASSERT_EQ(driver_dirExists(created_dir.c_str()), kTrue);
+    ASSERT_EQ(driver_dirExists(slashless_dir.c_str()), kTrue);
+    ASSERT_EQ(driver_rmdir(created_dir.c_str()), kOtherSuccess);
+    ASSERT_EQ(driver_dirExists(created_dir.c_str()), kFalse);
+    ASSERT_EQ(driver_dirExists(slashless_dir.c_str()), kFalse);
+}
