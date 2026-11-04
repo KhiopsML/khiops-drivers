@@ -37,7 +37,7 @@
 
 - Updated all GitHub actions which had a newer version available.
 
-- Updated the Python version used in CI jobs of the `package.yml` workflow to `3.15.2`.
+- Updated the Python version used in CI jobs of the `package.yml` workflow to `3.15`, automatically using the latest patch release.
 
   > Python is used in the `test-pip` job to create a virtual environment and to install Khiops Core and Khiops drivers.
 
