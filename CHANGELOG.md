@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## vX.Y.Z - YYYY-MM-DD
+## v0.0.33 - 2026-11-04
 
 - Removed generation of Debian 11 Bullseye package because Debian 11 is end-of-life.
 
