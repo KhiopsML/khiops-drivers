@@ -640,7 +640,8 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.15.2'
+          python-version: '3.15'
+          check-latest: true
 
       - name: Create virtual env
         run: python -m venv venv
@@ -857,7 +858,8 @@ jobs:
 
       - uses: actions/setup-python@v7
         with:
-          python-version: '3.15.2'
+          python-version: '3.15'
+          check-latest: true
 
       - name: Create virtual env
         run: python -m venv venv
