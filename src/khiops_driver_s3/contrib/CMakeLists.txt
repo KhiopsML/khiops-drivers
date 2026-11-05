@@ -1,0 +1,1 @@
+add_library(ini_parser INTERFACE ini.h)

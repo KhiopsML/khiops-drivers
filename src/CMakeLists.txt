@@ -1,0 +1,8 @@
+add_subdirectory(khiops_driver_common)
+if(DRIVER STREQUAL "azure")
+    add_subdirectory(khiops_driver_azure)
+elseif(DRIVER STREQUAL "gcs")
+    add_subdirectory(khiops_driver_gcs)
+elseif(DRIVER STREQUAL "s3")
+    add_subdirectory(khiops_driver_s3)
+endif()
