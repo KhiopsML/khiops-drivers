@@ -1,0 +1,87 @@
+[build-system]
+requires = ["scikit-build-core>=1.1.2", "dynamic-metadata"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "@@@PKGNAME@@@"
+readme = "README.md"
+license = "BSD-3-Clause-Clear"
+license-files = ["LICENSE"]
+maintainers = [{name = "Khiops Team", email = "khiops.team@orange.com"}]
+dynamic = ["version", "description"]
+
+[tool.scikit-build]
+minimum-version = "build-system.requires" # Make sure this file will always work independently of future changes in the defaults.
+sdist.inclusion-mode = "explicit" # Opt-in only: nothing is included by default.
+sdist.include = [
+    "/pyproject.toml",
+    "/README.md",
+    "/LICENSE",
+    "/CMakeLists.txt",
+    "/src/CMakeLists.txt",
+    "/src/khiops_driver_common/",
+    "/src/@@@DIRNAME@@@/",
+    "/vcpkg/@@@DIRNAME@@@/",
+]
+sdist.exclude = [
+    "/vcpkg/@@@DIRNAME@@@/vcpkg/buildtrees/",
+    "/vcpkg/@@@DIRNAME@@@/vcpkg/downloads/",
+    "/vcpkg/@@@DIRNAME@@@/vcpkg/packages/",
+    "/vcpkg/@@@DIRNAME@@@/vcpkg/vcpkg",
+]
+cmake.version = "CMakeLists.txt" # Read the minimal CMake version from the CMakeLists.txt file.
+cmake.define."VCPKG_MANIFEST_DIR" = "vcpkg/@@@DIRNAME@@@"
+cmake.define."DRIVER" = "azure"
+wheel.packages = [] # Don't look for a Python package: there is none.
+wheel.py-api = "py3" # No Python code in this package, so compatible with any Python version.
+[[tool.scikit-build.overrides]]
+if.platform-system = ".*" # Always true.
+cmake.toolchain-file = "vcpkg/@@@DIRNAME@@@/vcpkg/scripts/buildsystems/vcpkg.cmake" # The toolchain file can only be set in an override.
+
+[[tool.dynamic-metadata]]
+provider = "dynamic_metadata.regex"
+field = "version"
+input = "src/khiops_driver_common/version.hpp"
+regex = '''(?x)
+    ^ \s* \# \s* define \s+ DRIVER_VERSION \s+
+    "
+    (?P<major> \d+)
+    \.
+    (?P<minor> \d+)
+    \.
+    (?P<patch> \d+)
+    (?:
+        -
+        (?P<prereltype> a | b | rc)
+        \.
+        (?P<prereln> \d+)
+    )?
+    "
+    \s* $
+'''
+result = "{major}.{minor}.{patch}{prereltype}{prereln}"
+remove = "(None){,2}$"
+
+[[tool.dynamic-metadata]]
+provider = "dynamic_metadata.regex"
+field = "description"
+input = "src/@@@DIRNAME@@@/CMakeLists.txt"
+regex = '''(?x)
+    ^ \s* configure_driver_package \s* \(
+        \s*
+        \S+
+        \s+
+        " (?P<value>[^"]+) "
+        \s+
+        " [^"]+ "
+        \s*
+    \) \s* $
+'''
+
+[tool.cibuildwheel]
+build = "cp311-*"
+skip = "*musllinux*"
+archs = "auto64"
+
+[tool.cibuildwheel.linux]
+before-all = ["apt-get install -y zip perl || dnf install -y zip perl"]

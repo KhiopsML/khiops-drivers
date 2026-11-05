@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.0.40 - YYYY-MM-DD
+
+- Cleaned/refactored the CMake code.
+
+- Split the packaging so that each driver has its own DEB/RPM/pip/zip packages.
+
 ## v0.0.33 - 2026-11-04
 
 - Removed generation of Debian 11 Bullseye package because Debian 11 is end-of-life.

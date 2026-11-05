@@ -1,0 +1,5 @@
+add_executable(khiops_driver_gcs_metadata_tests test_drivermetadata.cpp)
+target_link_libraries(khiops_driver_gcs_metadata_tests PRIVATE GTest::gtest GTest::gmock_main khiops_driver_gcs)
+gtest_discover_tests(khiops_driver_gcs_metadata_tests)
+
+add_subdirectory(internal)

@@ -84,7 +84,7 @@ jobs:
           fi
           echo "Version '$SOURCE_VERSION' OK."
 
-  # Produce the deb package.
+  # Produce the deb packages.
   build-deb:
     if: inputs.package_format == 'all' || inputs.package_format == 'deb'
     needs: check-version
@@ -118,35 +118,49 @@ jobs:
           submodules: recursive  # Needed to get the vcpkg submodule of each driver.
           fetch-depth: 0
 
-      - name: Generate build system
-        run: cmake --preset all-ninja-rel
+      - name: Generate build systems
+        run: |
+          cmake --preset azure-rel
+          cmake --preset gcs-rel
+          cmake --preset s3-rel
 
       - name: Build all drivers
         run: |
-          set +e
-          cmake --build --preset all-ninja-rel
-          rc=$?
-          set -e
-
-          if [[ $rc -ne 0 ]]; then
-            for log in \
-              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
-              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
-              build/all/ninja-rel/s3/vcpkg-bootstrap.log
-            do
-              echo "==== $log ===="
-              if [[ -f "$log" ]]; then
-                cat "$log"
-              else
-                echo "Log not found"
-              fi
-            done
+          if ! cmake --build --preset azure-rel; then
+            echo "Azure driver build failed."
+            if [[ -f build/azure-rel/vcpkg-bootstrap.log ]]; then
+              cat build/azure-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
+          
+          if ! cmake --build --preset gcs-rel; then
+            echo "GCS driver build failed."
+            if [[ -f build/gcs-rel/vcpkg-bootstrap.log ]]; then
+              cat build/gcs-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
           fi
 
-          exit $rc
+          if ! cmake --build --preset s3-rel; then
+            echo "S3 driver build failed."
+            if [[ -f build/s3-rel/vcpkg-bootstrap.log ]]; then
+              cat build/s3-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
 
-      - name: Create package with CPack
-        run: (cd build/all/ninja-rel && cpack -G DEB)
+      - name: Create packages with CPack
+        run: |
+          cpack --preset azure-rel-deb
+          cpack --preset gcs-rel-deb
+          cpack --preset s3-rel-deb
 
       - name: Set env vars with distro info and arch
         run: |
@@ -158,19 +172,25 @@ jobs:
 
       - name: Rename the drivers' package to include distro codename
         run: |
-          cd build/all/ninja-rel/packages
-          for filename in *.deb; do
-            mv -v "$filename" "${filename%_*}-${VERSION_CODENAME}.${filename##*_}"
+          for PRESET in azure-rel gcs-rel s3-rel; do
+            cd build/$PRESET/packages
+            for filename in *.deb; do
+              mv -v "$filename" "${filename%_*}-${VERSION_CODENAME}.${filename##*_}"
+            done
+            cd -
           done
 
-      - name: Upload the drivers' package as artifact
+      - name: Upload the drivers' packages as artifact
         uses: actions/upload-artifact@v7
         with:
           name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
-          path: build/all/ninja-rel/packages/*.deb
+          path: |
+            build/azure-rel/packages/*.deb
+            build/gcs-rel/packages/*.deb
+            build/s3-rel/packages/*.deb
           if-no-files-found: error
 
-  # Test the deb package.
+  # Test the deb packages.
   test-deb:
     if: inputs.package_format == 'all' || inputs.package_format == 'deb'
     needs: build-deb
@@ -223,14 +243,14 @@ jobs:
           dpkg -i ./khiops-core.deb || true
           apt-get -f install -y
 
-      - name: Download the drivers' package stored as artifact
+      - name: Download the drivers' packages stored as artifact
         uses: actions/download-artifact@v8
         with:
           name: deb-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
           path: artifacts
 
-      - name: Install the drivers' package
-        run: dpkg -i ./artifacts/khiops-drivers*.deb || apt-get -f install -y
+      - name: Install the drivers' packages
+        run: dpkg -i ./artifacts/khiops-driver-*.deb || apt-get -f install -y
 
       - name: Check Khiops detects drivers
         uses: ./.github/actions/test-khiops-install
@@ -243,9 +263,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
+            test/khiops_driver_azure_tests/LearningTest
+            test/khiops_driver_gcs_tests/LearningTest
+            test/khiops_driver_s3_tests/LearningTest
             LearningTestTool
           sparse-checkout-cone-mode: false
 
@@ -278,7 +298,7 @@ jobs:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: azure/test
+          test-root: test/khiops_driver_azure_tests
           tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
@@ -289,7 +309,7 @@ jobs:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: gcs/test
+          test-root: test/khiops_driver_gcs_tests
           tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
@@ -300,12 +320,12 @@ jobs:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: s3/test
+          test-root: test/khiops_driver_s3_tests
           tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
 
-  # Release the deb package.
+  # Release the deb packages.
   release-deb:
     if: github.ref_type == 'tag' && (inputs.package_format == 'all' || inputs.package_format == 'deb')
     needs: test-deb
@@ -331,7 +351,7 @@ jobs:
           prerelease: true
           updateOnlyUnreleased: true
 
-  # Produce the rpm package.
+  # Produce the rpm packages.
   build-rpm:
     if: inputs.package_format == 'all' || inputs.package_format == 'rpm'
     needs: check-version
@@ -364,30 +384,41 @@ jobs:
 
       - name: Build all drivers
         run: |
-          set +e
-          cmake --build --preset all-ninja-rel
-          rc=$?
-          set -e
-
-          if [[ $rc -ne 0 ]]; then
-            for log in \
-              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
-              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
-              build/all/ninja-rel/s3/vcpkg-bootstrap.log
-            do
-              echo "==== $log ===="
-              if [[ -f "$log" ]]; then
-                cat "$log"
-              else
-                echo "Log not found"
-              fi
-            done
+          if ! cmake --build --preset azure-rel; then
+            echo "Azure driver build failed."
+            if [[ -f build/azure-rel/vcpkg-bootstrap.log ]]; then
+              cat build/azure-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
+          
+          if ! cmake --build --preset gcs-rel; then
+            echo "GCS driver build failed."
+            if [[ -f build/gcs-rel/vcpkg-bootstrap.log ]]; then
+              cat build/gcs-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
           fi
 
-          exit $rc
+          if ! cmake --build --preset s3-rel; then
+            echo "S3 driver build failed."
+            if [[ -f build/s3-rel/vcpkg-bootstrap.log ]]; then
+              cat build/s3-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
 
-      - name: Create package with CPack
-        run: (cd build/all/ninja-rel && cpack -G RPM)
+      - name: Create packages with CPack
+        run: |
+          cpack --preset azure-rel-deb
+          cpack --preset gcs-rel-deb
+          cpack --preset s3-rel-deb
 
       - name: Set env vars with distro info and arch
         run: |
@@ -396,18 +427,24 @@ jobs:
           echo "VERSION_CODENAME=$(echo $PLATFORM_ID | cut -d':' -f2)" >> "$GITHUB_ENV"
           echo "ARCH=$(arch)" >> "$GITHUB_ENV"
 
-      - name: Rename the drivers' package to include distro codename
+      - name: Rename the drivers' packages to include distro codename
         run: |
-          cd build/all/ninja-rel/packages
-          for filename in *.rpm; do
-            mv -v "$filename" "${filename%.${ARCH}*}.${VERSION_CODENAME}.${ARCH}.rpm"
+          for PRESET in azure-rel gcs-rel s3-rel; do
+            cd build/$PRESET/packages
+            for filename in *.rpm; do
+              mv -v "$filename" "${filename%.${ARCH}*}.${VERSION_CODENAME}.${ARCH}.rpm"
+            done
+            cd -
           done
 
-      - name: Upload the drivers' package as artifact
+      - name: Upload the drivers' packages as artifact
         uses: actions/upload-artifact@v7
         with:
           name: rpm-${{ env.ID }}-${{ env.VERSION_CODENAME }}-${{ env.ARCH }}
-          path: build/all/ninja-rel/packages/*.rpm
+          path: |
+            build/azure-rel/packages/*.rpm
+            build/gcs-rel/packages/*.rpm
+            build/s3-rel/packages/*.rpm
           if-no-files-found: error
 
   # Test the rpm package.
@@ -450,14 +487,14 @@ jobs:
           curl -L "https://github.com/KhiopsML/khiops/releases/download/${KHIOPS_CORE_RELEASE}/khiops-core-${MPI_IMPLEMENTATION}-${RPM_VERSION}-1.${VERSION}.x86_64.rpm" --output ./khiops-core.rpm
           yum install -y ./khiops-core.rpm
 
-      - name: Download the drivers' package stored as artifact
+      - name: Download the drivers' packages stored as artifact
         uses: actions/download-artifact@v8
         with:
           name: rpm-${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
           path: artifacts
 
       - name: Install the drivers' package
-        run: yum install -y ./artifacts/khiops-drivers*.rpm
+        run: yum install -y ./artifacts/khiops-driver-*.rpm
 
       - name: Check Khiops detects drivers
         uses: ./.github/actions/test-khiops-install
@@ -472,9 +509,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
+            test/khiops_driver_azure_tests/LearningTest
+            test/khiops_driver_gcs_tests/LearningTest
+            test/khiops_driver_s3_tests/LearningTest
             LearningTestTool
           sparse-checkout-cone-mode: false
 
@@ -507,7 +544,7 @@ jobs:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: azure/test
+          test-root: test/khiops_driver_azure_tests
           tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
@@ -518,7 +555,7 @@ jobs:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: gcs/test
+          test-root: test/khiops_driver_gcs_tests
           tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
@@ -529,7 +566,7 @@ jobs:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: s3/test
+          test-root: test/khiops_driver_s3_tests
           tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ env.ID }}-${{ env.VERSION }}-${{ env.ARCH }}
@@ -565,6 +602,13 @@ jobs:
     if: inputs.package_format == 'all' || inputs.package_format == 'pip'
     needs: check-version
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        driver:
+          - khiops-driver-azure
+          - khiops-driver-gcs
+          - khiops-driver-s3
     steps:
       - uses: actions/checkout@v7
         with:
@@ -575,7 +619,7 @@ jobs:
       - name: Upload the drivers' package as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: pip-sdist
+          name: pip-${{ matrix.driver }}-sdist
           path: dist/*.tar.gz
           if-no-files-found: error
 
@@ -586,12 +630,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: &pip-matrix
+      matrix:
         os:
           - ubuntu-24.04
           - ubuntu-24.04-arm
           - macos-15
           - windows-2025-vs2026
+        driver:
+          - khiops-driver-azure
+          - khiops-driver-gcs
+          - khiops-driver-s3
     steps:
       - uses: actions/checkout@v7
         with:
@@ -601,11 +649,13 @@ jobs:
         if: runner.os == 'Windows'
 
       - uses: pypa/cibuildwheel@v4.3.5
+        with:
+          config-file: pyproject-${{ matrix.driver }}.toml
 
       - name: Upload the drivers' package as artifact
         uses: actions/upload-artifact@v7
         with:
-          name: pip-wheels-${{ matrix.os }}
+          name: pip-${{ matrix.driver }}-wheels-${{ matrix.os }}
           path: wheelhouse/*.whl
           if-no-files-found: error
 
@@ -618,7 +668,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
-      matrix: *pip-matrix
+      matrix: 
+        os:
+          - ubuntu-24.04
+          - ubuntu-24.04-arm
+          - macos-15
+          - windows-2025-vs2026
     permissions:
       id-token: write
     steps:
@@ -631,7 +686,7 @@ jobs:
             .github/actions/test-khiops-on-iris
           sparse-checkout-cone-mode: false
 
-      - name: Download the drivers' package stored as artifact
+      - name: Download the drivers' packages stored as artifact
         uses: actions/download-artifact@v8
         with:
           pattern: pip-*
@@ -659,8 +714,8 @@ jobs:
       - name: Install Khiops Core
         run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
 
-      - name: Install package containing drivers
-        run: pip install --find-links=wheelhouse --no-index khiops-drivers
+      - name: Install packages containing drivers
+        run: pip install --find-links=wheelhouse --no-index khiops-driver-azure khiops-driver-gcs khiops-driver-s3
 
       - name: Add Intel MPI runtime to the PATH (Windows)
         if: runner.os == 'Windows'
@@ -681,9 +736,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
+            test/khiops_driver_azure_tests/LearningTest
+            test/khiops_driver_gcs_tests/LearningTest
+            test/khiops_driver_s3_tests/LearningTest
             LearningTestTool
           sparse-checkout-cone-mode: false
           clean: false  # Workspace already cleaned with first sparse checkout, and we must keep the created venv which contains Khiops and the drivers.
@@ -715,7 +770,7 @@ jobs:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: azure/test
+          test-root: test/khiops_driver_azure_tests
           tool-root: LearningTestTool
           driver-name: azure
           os-description: ${{ matrix.os }}
@@ -726,7 +781,7 @@ jobs:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: gcs/test
+          test-root: test/khiops_driver_gcs_tests
           tool-root: LearningTestTool
           driver-name: gcs
           os-description: ${{ matrix.os }}
@@ -737,7 +792,7 @@ jobs:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: s3/test
+          test-root: test/khiops_driver_s3_tests
           tool-root: LearningTestTool
           driver-name: s3
           os-description: ${{ matrix.os }}
@@ -746,17 +801,24 @@ jobs:
   release-pip-to-testpypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'testpypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
+    strategy:
+      fail-fast: false
+      matrix:
+        driver:
+          - khiops-driver-azure
+          - khiops-driver-gcs
+          - khiops-driver-s3
     runs-on: ubuntu-latest
     environment:
       name: testpypi
-      url: https://test.pypi.org/p/khiops-drivers
+      url: https://test.pypi.org/p/${{ matrix.driver }}
     permissions:
       id-token: write
     steps:
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
-          pattern: pip-*
+          pattern: pip-${{ matrix.driver }}-*
           path: dist
           merge-multiple: true
 
@@ -768,17 +830,24 @@ jobs:
   release-pip-to-pypi:
     if: github.ref_type == 'tag' && inputs.python_repository == 'pypi' && (inputs.package_format == 'all' || inputs.package_format == 'pip')
     needs: test-pip
+    strategy:
+      fail-fast: false
+      matrix:
+        driver:
+          - khiops-driver-azure
+          - khiops-driver-gcs
+          - khiops-driver-s3
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/p/khiops-drivers
+      url: https://pypi.org/p/${{ matrix.driver }}
     permissions:
       id-token: write
     steps:
       - name: Download the drivers' package stored as artifact
         uses: actions/download-artifact@v8
         with:
-          pattern: pip-*
+          pattern: pip-${{ matrix.driver }}-*
           path: dist
           merge-multiple: true
 
@@ -796,44 +865,61 @@ jobs:
 
       - uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Generate build system
-        run: cmake --preset all-ninja-rel
+      - name: Generate build systems
+        run: |
+          cmake --preset azure-rel
+          cmake --preset gcs-rel
+          cmake --preset s3-rel
 
       - name: Build all drivers
         run: |
-          set +e
-          cmake --build --preset all-ninja-rel
-          rc=$?
-          set -e
-
-          if [[ $rc -ne 0 ]]; then
-            for log in \
-              build/all/ninja-rel/azure/vcpkg-bootstrap.log \
-              build/all/ninja-rel/gcs/vcpkg-bootstrap.log \
-              build/all/ninja-rel/s3/vcpkg-bootstrap.log
-            do
-              echo "==== $log ===="
-              if [[ -f "$log" ]]; then
-                cat "$log"
-              else
-                echo "Log not found"
-              fi
-            done
+          if ! cmake --build --preset azure-rel; then
+            echo "Azure driver build failed."
+            if [[ -f build/azure-rel/vcpkg-bootstrap.log ]]; then
+              cat build/azure-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
+          
+          if ! cmake --build --preset gcs-rel; then
+            echo "GCS driver build failed."
+            if [[ -f build/gcs-rel/vcpkg-bootstrap.log ]]; then
+              cat build/gcs-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
           fi
 
-          exit $rc
+          if ! cmake --build --preset s3-rel; then
+            echo "S3 driver build failed."
+            if [[ -f build/s3-rel/vcpkg-bootstrap.log ]]; then
+              cat build/s3-rel/vcpkg-bootstrap.log
+            else
+              echo "Log not found"
+            fi
+            exit 1
+          fi
 
-      - name: Create package with CPack
-        run: (cd build/all/ninja-rel && cpack -G ZIP)
+      - name: Create packages with CPack
+        run: |
+          cpack --preset azure-rel-deb
+          cpack --preset gcs-rel-deb
+          cpack --preset s3-rel-deb
 
-      - name: Upload the drivers' package as artifact
+      - name: Upload the drivers' packages as artifact
         uses: actions/upload-artifact@v7
         with:
           name: zip-windows
-          path: build/all/ninja-rel/packages/*.zip
+          path: |
+            build/azure-rel/packages/*.zip
+            build/gcs-rel/packages/*.zip
+            build/s3-rel/packages/*.zip
           if-no-files-found: error
 
-  # Test the zip package for Windows.
+  # Test the zip packages for Windows.
   test-zip:
     if: inputs.package_format == 'all' || inputs.package_format == 'zip'
     needs: build-zip
@@ -883,7 +969,7 @@ jobs:
           }
           "$($impiDll.DirectoryName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
-      - name: Extract zip package and deploy drivers
+      - name: Extract zip packages and deploy drivers
         shell: pwsh
         run: |
           $zipFile = Get-ChildItem -Path zip-package -Filter *.zip | Select-Object -First 1
@@ -904,9 +990,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           sparse-checkout: |
-            azure/test/LearningTest
-            gcs/test/LearningTest
-            s3/test/LearningTest
+            test/khiops_driver_azure_tests/LearningTest
+            test/khiops_driver_gcs_tests/LearningTest
+            test/khiops_driver_s3_tests/LearningTest
             LearningTestTool
           sparse-checkout-cone-mode: false
           clean: false  # Keep the venv and installed drivers.
@@ -935,7 +1021,7 @@ jobs:
           AZURE_DRIVER_LOGLEVEL: warning
           AZURE_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: azure/test
+          test-root: test/khiops_driver_azure_tests
           tool-root: LearningTestTool
           driver-name: azure
           os-description: windows-latest
@@ -946,7 +1032,7 @@ jobs:
           GCS_DRIVER_LOGLEVEL: warning
           GCS_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: gcs/test
+          test-root: test/khiops_driver_gcs_tests
           tool-root: LearningTestTool
           driver-name: gcs
           os-description: windows-latest
@@ -957,7 +1043,7 @@ jobs:
           S3_DRIVER_LOGLEVEL: warning
           S3_DRIVER_LOGFILE: /dev/stderr
         with:
-          test-root: s3/test
+          test-root: test/khiops_driver_s3_tests
           tool-root: LearningTestTool
           driver-name: s3
           os-description: windows-latest

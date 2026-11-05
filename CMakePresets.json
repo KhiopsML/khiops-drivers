@@ -1,241 +1,110 @@
 {
-  "version": 3,
-  "configurePresets": [
-    {
-      "hidden": true,
-      "name": "base",
-      "generator": "Ninja"
-    },
-    {
-      "hidden": true,
-      "name": "azure-base",
-      "inherits": [
-        "base"
-      ],
-      "binaryDir": "${sourceDir}/build/azure/${presetName}",
-      "toolchainFile": "${sourceDir}/azure/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "KHIOPS_DRIVER": "azure",
-        "VCPKG_MANIFEST_DIR": "${sourceDir}/azure"
-      }
-    },
-    {
-      "hidden": true,
-      "name": "gcs-base",
-      "inherits": [
-        "base"
-      ],
-      "binaryDir": "${sourceDir}/build/gcs/${presetName}",
-      "toolchainFile": "${sourceDir}/gcs/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "KHIOPS_DRIVER": "gcs",
-        "VCPKG_MANIFEST_DIR": "${sourceDir}/gcs"
-      }
-    },
-    {
-      "hidden": true,
-      "name": "s3-base",
-      "inherits": [
-        "base"
-      ],
-      "binaryDir": "${sourceDir}/build/s3/${presetName}",
-      "toolchainFile": "${sourceDir}/s3/vcpkg/scripts/buildsystems/vcpkg.cmake",
-      "cacheVariables": {
-        "KHIOPS_DRIVER": "s3",
-        "VCPKG_MANIFEST_DIR": "${sourceDir}/s3"
-      }
-    },
-    {
-      "name": "azure-ninja-dbg",
-      "inherits": [
-        "azure-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
-    },
-    {
-      "name": "azure-ninja-rel",
-      "inherits": [
-        "azure-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "gcs-ninja-dbg",
-      "inherits": [
-        "gcs-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
-    },
-    {
-      "name": "gcs-ninja-rel",
-      "inherits": [
-        "gcs-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "s3-ninja-dbg",
-      "inherits": [
-        "s3-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
-      }
-    },
-    {
-      "name": "s3-ninja-rel",
-      "inherits": [
-        "s3-base"
-      ],
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release"
-      }
-    },
-    {
-      "name": "all-ninja-rel",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/all/ninja-rel",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "KHIOPS_PACKAGE_ALL": "ON"
-      }
-    }
-  ],
-  "buildPresets": [
-    {
-      "name": "azure-ninja-dbg",
-      "configurePreset": "azure-ninja-dbg"
-    },
-    {
-      "name": "azure-ninja-rel",
-      "configurePreset": "azure-ninja-rel"
-    },
-    {
-      "name": "gcs-ninja-dbg",
-      "configurePreset": "gcs-ninja-dbg"
-    },
-    {
-      "name": "gcs-ninja-rel",
-      "configurePreset": "gcs-ninja-rel"
-    },
-    {
-      "name": "s3-ninja-dbg",
-      "configurePreset": "s3-ninja-dbg"
-    },
-    {
-      "name": "s3-ninja-rel",
-      "configurePreset": "s3-ninja-rel"
-    },
-    {
-      "name": "all-ninja-rel",
-      "configurePreset": "all-ninja-rel"
-    }
-  ],
-  "testPresets": [
-    {
-      "name": "azure-ninja-dbg",
-      "configurePreset": "azure-ninja-dbg",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "azure-ninja-rel",
-      "configurePreset": "azure-ninja-rel",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "azure-ninja-dbg-blob",
-      "configurePreset": "azure-ninja-dbg",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "azure-ninja-rel-blob",
-      "configurePreset": "azure-ninja-rel",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "azure-ninja-dbg-file",
-      "configurePreset": "azure-ninja-dbg",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "azure-ninja-rel-file",
-      "configurePreset": "azure-ninja-rel",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "gcs-ninja-dbg",
-      "configurePreset": "gcs-ninja-dbg",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "gs://data-test-khiops-driver-gcs"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "gcs-ninja-rel",
-      "configurePreset": "gcs-ninja-rel",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "gs://data-test-khiops-driver-gcs"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "s3-ninja-dbg",
-      "configurePreset": "s3-ninja-dbg",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "s3://diod-data-di-jupyterhub"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "s3-ninja-rel",
-      "configurePreset": "s3-ninja-rel",
-      "environment": {
-        "STORAGE_DRIVER_TEST_URL_PREFIX": "s3://diod-data-di-jupyterhub"
-      },
-      "output": {
-        "outputOnFailure": true
-      }
-    }
-  ]
+    "version": 6,
+    "configurePresets": [
+        {
+            "hidden": true,
+            "name": "base",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build/${presetName}",
+            "cacheVariables": {"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"}
+        },
+        {
+            "hidden": true,
+            "name": "azure",
+            "inherits": ["base"],
+            "toolchainFile": "${sourceDir}/vcpkg/khiops_driver_azure/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {"VCPKG_MANIFEST_DIR": "${sourceDir}/vcpkg/khiops_driver_azure", "DRIVER": "azure"}
+        },
+        {
+            "hidden": true,
+            "name": "gcs",
+            "inherits": ["base"],
+            "toolchainFile": "${sourceDir}/vcpkg/khiops_driver_gcs/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {"VCPKG_MANIFEST_DIR": "${sourceDir}/vcpkg/khiops_driver_gcs", "DRIVER": "gcs"}
+        },
+        {
+            "hidden": true,
+            "name": "s3",
+            "inherits": ["base"],
+            "toolchainFile": "${sourceDir}/vcpkg/khiops_driver_s3/vcpkg/scripts/buildsystems/vcpkg.cmake",
+            "cacheVariables": {"VCPKG_MANIFEST_DIR": "${sourceDir}/vcpkg/khiops_driver_s3", "DRIVER": "s3"}
+        },
+        {"hidden": true, "name": "dbg", "cacheVariables": {"CMAKE_BUILD_TYPE": "Debug"}},
+        {"hidden": true, "name": "rel", "cacheVariables": {"CMAKE_BUILD_TYPE": "Release"}},
+        {"hidden": true, "name": "testing", "cacheVariables": {"TESTING": "ON"}},
+        {"name": "azure-dbg", "inherits": ["azure", "dbg"]},
+        {"name": "azure-dbg-testing", "inherits": ["azure", "dbg", "testing"]},
+        {"name": "azure-rel", "inherits": ["azure", "rel"]},
+        {"name": "azure-rel-testing", "inherits": ["azure", "rel", "testing"]},
+        {"name": "gcs-dbg", "inherits": ["gcs", "dbg"]},
+        {"name": "gcs-dbg-testing", "inherits": ["gcs", "dbg", "testing"]},
+        {"name": "gcs-rel", "inherits": ["gcs", "rel"]},
+        {"name": "gcs-rel-testing", "inherits": ["gcs", "rel", "testing"]},
+        {"name": "s3-dbg", "inherits": ["s3", "dbg"]},
+        {"name": "s3-dbg-testing", "inherits": ["s3", "dbg", "testing"]},
+        {"name": "s3-rel", "inherits": ["s3", "rel"]},
+        {"name": "s3-rel-testing", "inherits": ["s3", "rel", "testing"]}
+    ],
+    "buildPresets": [
+        {"name": "azure-dbg", "configurePreset": "azure-dbg"},
+        {"name": "azure-dbg-testing", "configurePreset": "azure-dbg-testing"},
+        {"name": "azure-rel", "configurePreset": "azure-rel"},
+        {"name": "azure-rel-testing", "configurePreset": "azure-rel-testing"},
+        {"name": "gcs-dbg", "configurePreset": "gcs-dbg"},
+        {"name": "gcs-dbg-testing", "configurePreset": "gcs-dbg-testing"},
+        {"name": "gcs-rel", "configurePreset": "gcs-rel"},
+        {"name": "gcs-rel-testing", "configurePreset": "gcs-rel-testing"},
+        {"name": "s3-dbg", "configurePreset": "s3-dbg"},
+        {"name": "s3-dbg-testing", "configurePreset": "s3-dbg-testing"},
+        {"name": "s3-rel", "configurePreset": "s3-rel"},
+        {"name": "s3-rel-testing", "configurePreset": "s3-rel-testing"}
+    ],
+    "testPresets": [
+        {"hidden": true, "name": "base", "output": {"outputOnFailure": true}},
+        {"hidden": true, "name": "azure-dbg-testing", "inherits": ["base"], "configurePreset": "azure-dbg-testing"},
+        {"hidden": true, "name": "azure-rel-testing", "inherits": ["base"], "configurePreset": "azure-rel-testing"},
+        {"hidden": true, "name": "gcs-dbg-testing", "inherits": ["base"], "configurePreset": "gcs-dbg-testing"},
+        {"hidden": true, "name": "gcs-rel-testing", "inherits": ["base"], "configurePreset": "gcs-rel-testing"},
+        {"hidden": true, "name": "s3-dbg-testing", "inherits": ["base"], "configurePreset": "s3-dbg-testing"},
+        {"hidden": true, "name": "s3-rel-testing", "inherits": ["base"], "configurePreset": "s3-rel-testing"},
+        {
+            "hidden": true,
+            "name": "azure-blob",
+            "environment": {"STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.blob.core.windows.net/data-test-khiops-driver-azure"}
+        },
+        {
+            "hidden": true,
+            "name": "azure-file",
+            "environment": {"STORAGE_DRIVER_TEST_URL_PREFIX": "https://khiopsdriverazure.file.core.windows.net/data-test-khiops-driver-azure"}
+        },
+        {
+            "hidden": true,
+            "name": "gcs-blob",
+            "environment": {"STORAGE_DRIVER_TEST_URL_PREFIX": "gs://data-test-khiops-driver-gcs"}
+        },
+        {
+            "hidden": true,
+            "name": "s3-blob",
+            "environment": {"STORAGE_DRIVER_TEST_URL_PREFIX": "s3://diod-data-di-jupyterhub"}
+        },
+        {"name": "azure-dbg-testing-blob", "inherits": ["azure-dbg-testing", "azure-blob"]},
+        {"name": "azure-rel-testing-blob", "inherits": ["azure-rel-testing", "azure-blob"]},
+        {"name": "azure-dbg-testing-file", "inherits": ["azure-dbg-testing", "azure-file"]},
+        {"name": "azure-rel-testing-file", "inherits": ["azure-rel-testing", "azure-file"]},
+        {"name": "gcs-dbg-testing-blob", "inherits": ["gcs-dbg-testing", "gcs-blob"]},
+        {"name": "gcs-rel-testing-blob", "inherits": ["gcs-rel-testing", "gcs-blob"]},
+        {"name": "s3-dbg-testing-blob", "inherits": ["s3-dbg-testing", "s3-blob"]},
+        {"name": "s3-rel-testing-blob", "inherits": ["s3-rel-testing", "s3-blob"]}
+    ],
+    "packagePresets": [
+        {"name": "azure-rel-deb", "configurePreset": "azure-rel", "generators": ["DEB"]},
+        {"name": "azure-rel-rpm", "configurePreset": "azure-rel", "generators": ["RPM"]},
+        {"name": "azure-rel-zip", "configurePreset": "azure-rel", "generators": ["ZIP"]},
+        {"name": "gcs-rel-deb", "configurePreset": "gcs-rel", "generators": ["DEB"]},
+        {"name": "gcs-rel-rpm", "configurePreset": "gcs-rel", "generators": ["RPM"]},
+        {"name": "gcs-rel-zip", "configurePreset": "gcs-rel", "generators": ["ZIP"]},
+        {"name": "s3-rel-deb", "configurePreset": "s3-rel", "generators": ["DEB"]},
+        {"name": "s3-rel-rpm", "configurePreset": "s3-rel", "generators": ["RPM"]},
+        {"name": "s3-rel-zip", "configurePreset": "s3-rel", "generators": ["ZIP"]}
+    ]
 }
