@@ -1,0 +1,6 @@
+find_package(azure-core-cpp CONFIG REQUIRED)
+add_executable(khiops_driver_azure_internal_tests fixture_connstring.hpp test_connstring.cpp)
+target_include_directories(khiops_driver_azure_internal_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_compile_options(khiops_driver_azure_internal_tests PRIVATE ${COMMON_COMPILE_OPTIONS})
+target_link_libraries(khiops_driver_azure_internal_tests PRIVATE GTest::gtest GTest::gmock_main Azure::azure-core khiops_driver_azure)
+gtest_discover_tests(khiops_driver_azure_internal_tests PROPERTIES ENVIRONMENT "LSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/khiops_driver_azure_lsan_suppr.txt")

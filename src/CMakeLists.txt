@@ -1,0 +1,4 @@
+add_subdirectory(khiops_driver_common)
+add_subdirectory(khiops_driver_azure)
+#add_subdirectory(khiops_driver_gcs)
+#add_subdirectory(khiops_driver_s3)
