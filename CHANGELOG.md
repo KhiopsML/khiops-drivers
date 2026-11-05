@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## v0.0.40 - YYYY-MM-DD
+
+- Cleaned/refactored the CMake code.
+
+- Refactored the CI scripts.
+
+- Split the packaging so that each driver has its own DEB/RPM/pip/zip packages.
+
+- The `test` CI workflow now runs its job on the latest version of each supported Linux distributions, in addition to macOS and Windows, instead of only running on Ubuntu, macOS and Windows.
+
+- (Azure driver) Fixed the generation of URLs that include SAS tokens.
+  These URLs are used when using concat and multifile composition with a connection string.
+  It somehow worked fine previously but broke recently for an unknown reason.
+  The fix consists of checking if the token (which is an URL query string) already starts with a question mark, and if it is the case, we don't insert another question mark between the URL and the query string.
+
 ## v0.0.33 - 2026-11-04
 
 - Removed generation of Debian 11 Bullseye package because Debian 11 is end-of-life.

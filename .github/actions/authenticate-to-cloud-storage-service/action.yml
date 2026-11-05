@@ -1,0 +1,112 @@
+name: Authenticate to cloud storage service
+description: Authenticate to Azure, GCS or S3 cloud storage service
+inputs:
+  driver:
+    description: The driver which will determine to which cloud storage service to authenticate to ('azure', 'gcs', 's3')
+    required: true
+  pkgtype:
+    description: The type of packaging system used on the system, used to install Azure CLI in Linux containers if selected driver is 'azure' ('deb', 'rpm', '')
+    required: false
+    default: ""
+  azure_client_id:
+    description: Credentials
+    required: false
+  azure_tenant_id:
+    description: Credentials
+    required: false
+  azure_subscription_id:
+    description: Credentials
+    required: false
+  azure_connection_string:
+    description: Credentials
+    required: false
+  aws_access_key_id:
+    description: Credentials
+    required: false
+  aws_secret_access_key:
+    description: Credentials
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Check inputs
+      shell: bash
+      env:
+        DRIVER: ${{ inputs.driver }}
+        PKGTYPE: ${{ inputs.pkgtype }}
+        AZURE_CLIENT_ID: ${{ inputs.azure_client_id }}
+        AZURE_TENANT_ID: ${{ inputs.azure_tenant_id }}
+        AZURE_SUBSCRIPTION_ID: ${{ inputs.azure_subscription_id }}
+        AZURE_CONNECTION_STRING: ${{ inputs.azure_connection_string }}
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+      run: |
+        [[ "$DRIVER" =~ ^(azure|gcs|s3)$ ]] || { echo "::error::Invalid driver '$DRIVER'. Valid values are: 'azure', 'gcs', 's3'." >&2 && exit 1; }
+        [[ "$PKGTYPE" =~ ^(deb|rpm)?$ ]] || { echo "::error::Invalid packaging type '$PKGTYPE'. Valid values are: 'deb', 'rpm', '' (empty)." >&2 && exit 1; }
+        if [ "$DRIVER" = azure ]; then
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            [ "$AZURE_CONNECTION_STRING" ] || { echo "::error::On tag but no connection string was provided." >&2 && exit 1; }
+          else
+            [[ "$AZURE_CLIENT_ID" && "$AZURE_TENANT_ID" && "$AZURE_SUBSCRIPTION_ID" ]] || { echo "::error::Not on tag but missing client ID, tenant ID or subscription ID." >&2 && exit 1; }
+          fi
+        fi
+        if [ "$DRIVER" = s3 ]; then
+          [[ "$AWS_ACCESS_KEY_ID" && "$AWS_SECRET_ACCESS_KEY" ]] || { echo "::error::Missing access key ID or secret access key." >&2 && exit 1; }
+        fi
+
+    - name: Install Azure CLI [deb]
+      if: inputs.driver == 'azure' && github.ref_type != 'tag' && inputs.pkgtype == 'deb'
+      shell: bash
+      run: |
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y curl
+        curl -fsSL 'https://azurecliprod.blob.core.windows.net/$root/deb_install.sh' | bash
+
+    - name: Install Azure CLI [rpm]
+      if: inputs.driver == 'azure' && github.ref_type != 'tag' && inputs.pkgtype == 'rpm'
+      shell: bash
+      run: |
+        source /etc/os-release
+        EL_VERSION=${PLATFORM_ID#platform:el}
+        case $EL_VERSION in
+          9) KEYFILE=microsoft.asc; RHELVERSION=9.0;;
+          10) KEYFILE=microsoft-2025.asc; RHELVERSION=10;;
+          *) echo "Unsupported OS version '$EL_VERSION'" >&2; exit 1;;
+        esac
+        rpm --import "https://packages.microsoft.com/keys/$KEYFILE"
+        dnf install -y "https://packages.microsoft.com/config/rhel/$RHELVERSION/packages-microsoft-prod.rpm"
+        dnf install -y azure-cli
+
+    - name: Authenticate to Azure cloud services through WIF
+      if: inputs.driver == 'azure' && github.ref_type != 'tag'
+      uses: azure/login@v3
+      with:
+        client-id: ${{ inputs.azure_client_id }}
+        tenant-id: ${{ inputs.azure_tenant_id }}
+        subscription-id: ${{ inputs.azure_subscription_id }}
+
+    - name: Authenticate to Azure cloud services through connection string env var
+      if: inputs.driver == 'azure' && github.ref_type == 'tag'
+      shell: bash
+      env:
+        AZURE_CONNECTION_STRING: ${{ inputs.azure_connection_string }}
+      run: echo "AZURE_STORAGE_CONNECTION_STRING=$AZURE_CONNECTION_STRING" >> "$GITHUB_ENV"
+
+    - name: Authenticate to GCS cloud services
+      if: inputs.driver == 'gcs'
+      uses: google-github-actions/auth@v3
+      with:
+        service_account: 'khiops-gcs-driver-test-sa@ino-olr-dak-ideal-sbx.iam.gserviceaccount.com'
+        workload_identity_provider: 'projects/322269704080/locations/global/workloadIdentityPools/github/providers/my-repo'
+
+    - name: Authenticate to S3 cloud services
+      if: inputs.driver == 's3'
+      shell: bash
+      env:
+        AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+        AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+      run: |
+        echo "AWS_ENDPOINT_URL=${{ vars.AWS_ENDPOINT_URL }}" >> "$GITHUB_ENV"
+        echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> "$GITHUB_ENV"
+        echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> "$GITHUB_ENV"
