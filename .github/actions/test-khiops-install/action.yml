@@ -1,103 +1,36 @@
 ---
 name: Test Khiops Installation
 description: Test Khiops detection of installed drivers
+inputs:
+  driver:
+    description: The driver that Khiops should detect
+    required: true
 runs:
   using: composite
   steps:
-    - name: Check Khiops output [UNIXes]
-      if: runner.os != 'Windows'
+    - name: Check Khiops output
       shell: bash
       env:
         KHIOPS_PROC_NUMBER: 4
         OMPI_MCA_rmaps_base_oversubscribe: true
         PRTE_MCA_rmaps_default_mapping_policy: :oversubscribe
         KHIOPS_MPI_VERBOSE: true
-        EXPECTED_DRIVERS: |
-          Azure driver
-          GCS driver
-          S3 driver
+        DRIVER: ${{ inputs.driver }}
+        KHIOPS: ${{ runner.os == 'Windows' && 'khiops.cmd' || 'khiops' }}
       run: |
-        set -euo pipefail
+        case "$DRIVER" in
+          azure) EXPECTED='Azure driver';;
+          gcs) EXPECTED='GCS driver';;
+          s3) EXPECTED='S3 driver';;
+          *) echo "Unknown driver '$DRIVER'" >&2 && exit 1;;
+        esac
 
-        khiops -s | tee khiops-status.txt
-        khiops -v &> khiops-version.txt
+        echo "> $KHIOPS -v"
+        KHIOPS_V_OUTPUT="$($KHIOPS -v)" || { echo "::error::Error executing '$KHIOPS -v'" >&2 && exit 1; }
+        echo "$KHIOPS_V_OUTPUT"
+        [ "$(echo "$KHIOPS_V_OUTPUT" | wc -l)" -eq 1 ] || { echo "::error::Unexpected output in '$KHIOPS -v'" >&2 && exit 1; }
 
-        line_count=$(wc -l < khiops-version.txt)
-        if [[ "$line_count" -gt 1 ]]; then
-          echo "::error::Unexpected output in khiops -v"
-          exit 1
-        fi
-
-        while IFS= read -r pattern; do
-          [[ -z "$pattern" ]] && continue
-          if ! grep -F "$pattern" khiops-status.txt > /dev/null; then
-            echo "::error::Pattern '$pattern' not found in khiops -s output"
-            exit 1
-          fi
-        done <<< "$EXPECTED_DRIVERS"
-
-    - name: Check Khiops output [Windows]
-      if: runner.os == 'Windows'
-      shell: pwsh
-      env:
-        KHIOPS_PROC_NUMBER: 4
-        EXPECTED_DRIVERS: |
-          Azure driver
-          GCS driver
-          S3 driver
-      run: |
-        $cmd = (Get-Command khiops.cmd -ErrorAction SilentlyContinue)?.Source
-        if (-not $cmd) {
-          $cmd = (Get-Command khiops -ErrorAction Stop).Source
-        }
-
-        $stdout = Join-Path $env:RUNNER_TEMP "khiops_stdout.txt"
-        $stderr = Join-Path $env:RUNNER_TEMP "khiops_stderr.txt"
-
-        $p = Start-Process -FilePath $cmd `
-          -ArgumentList "-s" `
-          -RedirectStandardOutput $stdout `
-          -RedirectStandardError $stderr `
-          -NoNewWindow `
-          -PassThru
-
-        if (-not $p.WaitForExit(60000)) {
-          Stop-Process -Id $p.Id -Force
-          Write-Error "Timeout: khiops -s did not finish within 60s"
-          exit 1
-        }
-
-        $out = Get-Content $stdout -Raw -ErrorAction SilentlyContinue
-        $err = Get-Content $stderr -Raw -ErrorAction SilentlyContinue
-
-        Write-Host "----- STDOUT -----"
-        $out | Out-Host
-        Write-Host "----- STDERR -----"
-        $err | Out-Host
-        Write-Host "ExitCode=$($p.ExitCode)"
-
-        $versionOut = Join-Path $env:RUNNER_TEMP "khiops_version.txt"
-        & $cmd -v *> $versionOut
-        # Keep the check strict on fatal output while tolerating benign warning lines.
-        $versionLines = Get-Content $versionOut -ErrorAction SilentlyContinue
-        $nonEmptyLines = $versionLines | Where-Object { $_ -match '\S' }
-        $fatalLines = $nonEmptyLines | Where-Object {
-          ($_ -notmatch '^WARNING: You are using pip version ') -and
-          ($_ -notmatch '^You should consider upgrading via the ') -and
-          ($_ -notmatch '^\[notice\] A new release of pip is available:') -and
-          ($_ -notmatch '^\[notice\] To update, run: ')
-        }
-        if (($fatalLines | Measure-Object -Line).Lines -gt 1) {
-          Write-Host "khiops -v output:"
-          $nonEmptyLines | Out-Host
-          Write-Error "Unexpected output in khiops -v"
-          exit 1
-        }
-
-        $patterns = $env:EXPECTED_DRIVERS -split "`r?`n" | Where-Object { $_ -ne "" }
-        foreach ($pattern in $patterns) {
-          if ($out -notmatch [regex]::Escape($pattern)) {
-            Write-Error "Pattern '$pattern' not found in stdout"
-            exit 1
-          }
-        }
+        echo "> $KHIOPS -s"
+        KHIOPS_S_OUTPUT="$($KHIOPS -s)" || { echo "::error::Error executing '$KHIOPS -s'" >&2 && exit 1; }
+        echo "$KHIOPS_S_OUTPUT"
+        [[ "$KHIOPS_S_OUTPUT" == *"$EXPECTED"* ]] || { echo "::error::Expected string '$EXPECTED' not found in '$KHIOPS -s' output" >&2 && exit 1; }

@@ -1,0 +1,37 @@
+name: Install Khiops Core using pip
+description: Install Khiops Core with the use of pip
+runs:
+  using: composite
+  steps:
+    - name: Install Python
+      uses: actions/setup-python@v7
+      with:
+        python-version: '3.15'
+        check-latest: true
+
+    - name: Create virtual env
+      shell: bash
+      run: python -m venv venv
+
+    - name: Add virtual env executables' dir to PATH [Linux and macOS]
+      if: runner.os == 'Linux' || runner.os == 'macOS'
+      shell: bash
+      run: echo "$(realpath venv/bin)" >> "$GITHUB_PATH"
+
+    - name: Add virtual env executables' dir to PATH [Windows]
+      if: runner.os == 'Windows'
+      shell: bash
+      run: echo "$(pwd -W)/venv/Scripts" >> "$GITHUB_PATH"
+
+    - name: Install Khiops Core
+      shell: bash
+      run: pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple khiops-core
+
+    - name: Add Intel MPI DLL to PATH [Windows]
+      if: runner.os == 'Windows'
+      shell: bash
+      run: |
+        IMPI_DLL="$(find venv -type f -iname impi.dll -print -quit)"
+        [ "$IMPI_DLL" ] || { echo "impi.dll not found in venv" >&2 && exit 1; }
+        echo "Found impi.dll at '$IMPI_DLL'."
+        echo "$(pwd -W)/$(dirname "$IMPI_DLL")" >> "$GITHUB_PATH"

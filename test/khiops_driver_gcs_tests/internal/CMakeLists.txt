@@ -1,0 +1,3 @@
+add_executable(khiops_driver_gcs_internal_tests mocking_test.cpp nonmocking_test.cpp oauth2_token_manager_test.cpp)
+target_link_libraries(khiops_driver_gcs_internal_tests PRIVATE GTest::gtest GTest::gmock_main khiops_driver_gcs_objlib)
+gtest_discover_tests(khiops_driver_gcs_internal_tests)

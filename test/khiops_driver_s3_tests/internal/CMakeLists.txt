@@ -1,0 +1,3 @@
+add_executable(khiops_driver_s3_internal_tests s3_test.cpp)
+target_link_libraries(khiops_driver_s3_internal_tests PRIVATE GTest::gtest GTest::gmock_main khiops_driver_s3_objlib)
+gtest_discover_tests(khiops_driver_s3_internal_tests PROPERTIES ENVIRONMENT "LSAN_OPTIONS=suppressions=${CMAKE_SOURCE_DIR}/khiops_driver_s3_lsan_suppr.txt")

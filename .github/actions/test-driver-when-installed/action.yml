@@ -1,0 +1,100 @@
+name: Test driver with iris dataset
+description: Test driver with iris dataset when Khiops and the driver have already been installed
+inputs:
+  driver:
+    description: The driver to test ('azure', 'gcs', 's3')
+    required: true
+  pkgtype:
+    description: The type of packaging system used on the system, used to install Azure CLI in Linux containers if selected driver is 'azure' ('deb', 'rpm', '')
+    required: false
+    default: ""
+  os-description:
+    description: OS description used to name artifacts
+    required: true
+  azure_client_id:
+    description: Credentials
+    required: false
+  azure_tenant_id:
+    description: Credentials
+    required: false
+  azure_subscription_id:
+    description: Credentials
+    required: false
+  azure_connection_string:
+    description: Credentials
+    required: false
+  aws_endpoint_url:
+    description: Credentials
+    required: false
+  aws_access_key_id:
+    description: Credentials
+    required: false
+  aws_secret_access_key:
+    description: Credentials
+    required: false
+runs:
+  using: composite
+  steps:
+    - name: Check inputs
+      shell: bash
+      env:
+        DRIVER: ${{ inputs.driver }}
+      run: |
+        [[ "$DRIVER" =~ ^(azure|gcs|s3)$ ]] || { echo "::error::Invalid driver '$DRIVER'. Valid values are: 'azure', 'gcs', 's3'." >&2 && exit 1; }
+
+    - name: Check that Khiops detects the driver
+      uses: ./.github/actions/test-khiops-install
+      with:
+        driver: ${{ inputs.driver }}
+
+    - name: Fetch Iris dataset and Khiops testing tools
+      uses: actions/checkout@v7
+      with:
+        sparse-checkout: |
+          test/khiops_driver_${{ inputs.driver }}_tests/LearningTest
+          LearningTestTool
+        sparse-checkout-cone-mode: false
+        clean: false
+
+    - name: Authenticate to cloud storage service
+      uses: ./.github/actions/authenticate-to-cloud-storage-service
+      with:
+        driver: ${{ inputs.driver }}
+        pkgtype: ${{ inputs.pkgtype }}
+        azure_client_id: ${{ inputs.azure_client_id }}
+        azure_tenant_id: ${{ inputs.azure_tenant_id }}
+        azure_subscription_id: ${{ inputs.azure_subscription_id }}
+        azure_connection_string: ${{ inputs.azure_connection_string }}
+        aws_endpoint_url: ${{ inputs.aws_endpoint_url }}
+        aws_access_key_id: ${{ inputs.aws_access_key_id }}
+        aws_secret_access_key: ${{ inputs.aws_secret_access_key }}
+
+    - name: Enable driver logs [Linux]
+      if: runner.os == 'Linux'
+      shell: bash
+      env:
+        DRIVER: ${{ inputs.driver }}
+      run: |
+        case "$DRIVER" in
+          azure)
+            echo "AZURE_DRIVER_LOGLEVEL=warning" >> "$GITHUB_ENV"
+            echo "AZURE_DRIVER_LOGFILE=/dev/stderr" >> "$GITHUB_ENV"
+            ;;
+          gcs)
+            echo "GCS_DRIVER_LOGLEVEL=warning" >> "$GITHUB_ENV"
+            echo "GCS_DRIVER_LOGFILE=/dev/stderr" >> "$GITHUB_ENV"
+            ;;
+          s3)
+            echo "S3_DRIVER_LOGLEVEL=warning" >> "$GITHUB_ENV"
+            echo "S3_DRIVER_LOGFILE=/dev/stderr" >> "$GITHUB_ENV"
+            ;;
+          *) echo "Unknown driver '$DRIVER'" >&2 && exit 1;;
+        esac
+
+    - name: Test Khiops with driver on Iris dataset
+      uses: ./.github/actions/test-khiops-on-iris
+      with:
+        test-root: test/khiops_driver_${{ inputs.driver }}_tests
+        tool-root: LearningTestTool
+        driver-name: ${{ inputs.driver }}
+        os-description: ${{ inputs.os-description }}
