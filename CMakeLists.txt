@@ -1,25 +1,113 @@
 cmake_minimum_required(VERSION 3.21)
 
-# Read the shared version before the project() call so it is available everywhere.
-file(READ "${CMAKE_CURRENT_SOURCE_DIR}/src/khiops_driver_common/version.hpp" _ver_file)
-string(REGEX MATCH "#define DRIVER_VERSION \"([^\"]+)\"" _ "${_ver_file}")
-set(DRIVERS_VERSION "${CMAKE_MATCH_1}")
-string(REGEX REPLACE "-.*" "" DRIVERS_VERSION_SHORT "${DRIVERS_VERSION}")
-string(REPLACE "-" "~" DRIVERS_VERSION_TILDE_SUFFIX "${DRIVERS_VERSION}")
-
-project(khiops-drivers
-  LANGUAGES CXX
-  VERSION "${DRIVERS_VERSION_SHORT}")
-
-option(BUILD_TESTS "Build test programs" OFF)
-
-if(BUILD_TESTS)
-  enable_testing()
+# Ensure to pick up the default triplet from the environment if any. This helps driving the vcpkg triplet in the same
+# way either when starting vcpkg directly, or when letting CMake start vcpkg at configure/generate time.
+# Note: this logic must happen before 'project' command.
+if(DEFINED ENV{VCPKG_DEFAULT_TRIPLET} AND NOT DEFINED VCPKG_TARGET_TRIPLET)
+  set(VCPKG_TARGET_TRIPLET "$ENV{VCPKG_DEFAULT_TRIPLET}" CACHE STRING "The vcpkg triplet")
 endif()
 
-# ---------------------------------------------------------------------------
-# Helper: per-driver extra CMake args (Windows triplet, vcpkg toolchain…)
-# ---------------------------------------------------------------------------
+# Read raw version from file.
+file(READ "${CMAKE_SOURCE_DIR}/src/khiops_driver_common/version.hpp" VERSION_FILE)
+string(REGEX MATCH "#define DRIVER_VERSION \"([^\"]+)\"" _ "${VERSION_FILE}")
+set(RAW_VERSION "${CMAKE_MATCH_1}")
+message(STATUS "Raw version: ${RAW_VERSION}")
+
+# Remove suffix from raw version.
+string(REGEX REPLACE "-.*" "" NOSUFFIX_VERSION "${RAW_VERSION}")
+message(STATUS "No-suffix version: ${NOSUFFIX_VERSION}")
+
+# Some package formats use a tilde to separate the version base from the suffix because they
+# already use the hyphen to separate the content version from the package release version.
+# Examples of this are deb and rpm formats.
+string(REPLACE "-" "~" TILDESUFFIX_VERSION "${RAW_VERSION}")
+message(STATUS "Tilde-suffix version: ${TILDESUFFIX_VERSION}")
+
+project("khiops-driver" LANGUAGES CXX VERSION "${NOSUFFIX_VERSION}")
+
+message(STATUS "Source directory: ${CMAKE_SOURCE_DIR}")
+message(STATUS "Build directory: ${CMAKE_BINARY_DIR}")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# User inputs
+set(DRIVER "" CACHE STRING "Driver to configure: azure, gcs, or s3")
+message(STATUS "Driver: ${DRIVER}")
+option(TESTING "Build test suites and build driver library in testing mode" OFF)
+message(STATUS "Tests: ${TESTING}")
+
+# Set path to find modules like CodeCoverage.
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules/)
+
+set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+message(STATUS "C++ version: ${CMAKE_CXX_STANDARD}")
+
+if(MSVC)
+    # Set CMake policy for MSVC runtime selection.
+    if(POLICY CMP0091)
+        cmake_policy(SET CMP0091 NEW)
+    endif()
+
+    # Set MSVC runtime from VCPKG triplet.
+    if(DEFINED VCPKG_TARGET_TRIPLET)
+        string(TOLOWER "${VCPKG_TARGET_TRIPLET}" VCPKG_TARGET_TRIPLET_LOWERCASE)
+        if(VCPKG_TARGET_TRIPLET_LOWERCASE MATCHES "-static$")
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        else()
+            set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+        endif()
+        message(STATUS "MSVC runtime: ${CMAKE_MSVC_RUNTIME_LIBRARY} (derived from VCPKG_TARGET_TRIPLET: ${VCPKG_TARGET_TRIPLET})")
+    else()
+        message(WARNING "VCPKG_TARGET_TRIPLET undefined; runtime MSVC not forced. To avoid LNK2038 conflicts, pass -DVCPKG_TARGET_TRIPLET=...")
+    endif()
+endif()
+
+if(TESTING)
+    # Exclude googletest from the installation and packages.
+    set(INSTALL_GTEST OFF)
+    set(INSTALL_GMOCK OFF)
+
+    include(GoogleTest)
+    enable_testing()
+
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+        # Enable sanitizers.
+        add_compile_options(-fsanitize=undefined -fsanitize=address -fno-sanitize-recover=all)
+        add_link_options(-fsanitize=undefined -fsanitize=address -fno-sanitize-recover=all)
+
+        # Enable code coverage.
+        include(CodeCoverage)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_COVERAGE} ${CMAKE_CXX_FLAGS_DEBUG}")
+        setup_target_for_coverage(${PROJECT_NAME}_coverage basic_test coverage)
+        setup_target_for_coverage_cobertura(${PROJECT_NAME}_cobertura basic_test coverage --gtest_output=xml:coverage.junit.xml)
+    endif()
+    
+    add_subdirectory("test")
+else()
+    # Hide symbols in the shared libraries to only expose the public functions to be used by the end-user.
+    set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+    set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
+endif()
+
+# Import 'add_driver' function.
+include(driver)
+
+if(DRIVER STREQUAL "azure")
+    set(LSAN_SUPPRESSION_FILE "azure/lsan_suppressions.txt")
+    add_subdirectory("azure")
+elseif(DRIVER STREQUAL "gcs")
+    add_subdirectory("gcs")
+elseif(DRIVER STREQUAL "s3")
+    set(LSAN_SUPPRESSION_FILE "s3/lsan_suppressions.txt")
+    add_subdirectory("s3")
+else()
+    message(FATAL_ERROR "DRIVER is set to '${DRIVER}' but must be one of 'azure', 'gcs', or 's3'")
+endif()
+
+message(FATAL_ERROR "test end")
+
+
+# Helper: per-driver extra CMake args (Windows triplet, vcpkg toolchain...)
 macro(_driver_extra_cmake_args _driver _out_var)
   set(${_out_var} "")
   if(WIN32 AND CMAKE_SYSTEM_PROCESSOR MATCHES "AMD64|x86_64")
@@ -33,11 +121,8 @@ macro(_driver_extra_cmake_args _driver _out_var)
   )
 endmacro()
 
-# ---------------------------------------------------------------------------
-# Mode 1 – pip packaging via scikit-build-core (SKBUILD is defined)
-#   Build all three drivers as independent ExternalProject sub-builds, each
-#   using its own vcpkg checkout, then collect and install the shared libraries.
-# ---------------------------------------------------------------------------
+
+# pip packaging via scikit-build-core (SKBUILD is defined)
 if(DEFINED SKBUILD)
   include(ExternalProject)
 
@@ -64,13 +149,6 @@ if(DEFINED SKBUILD)
 
 # ---------------------------------------------------------------------------
 # Mode 2 – DEB / RPM packaging (KHIOPS_PACKAGE_ALL=ON)
-#   Build all three drivers into a common staging directory, then let CPack
-#   bundle the three shared libraries into a single package.
-#
-#   Typical workflow:
-#     cmake --preset all-ninja-rel
-#     cmake --build --preset all-ninja-rel
-#     cpack --preset all-ninja-rel -G DEB   (or -G RPM)
 # ---------------------------------------------------------------------------
 elseif(KHIOPS_PACKAGE_ALL)
   include(ExternalProject)
@@ -154,14 +232,7 @@ elseif(KHIOPS_PACKAGE_ALL)
 # Mode 3 – developer build (single driver selected via -DKHIOPS_DRIVER=...)
 # ---------------------------------------------------------------------------
 else()
-  set(KHIOPS_DRIVER
-      ""
-      CACHE STRING "Driver to configure: azure, gcs, or s3")
-  set_property(CACHE KHIOPS_DRIVER PROPERTY STRINGS azure gcs s3)
-
-  if(KHIOPS_DRIVER STREQUAL "")
-    message(FATAL_ERROR "KHIOPS_DRIVER must be set to one of: azure, gcs, s3")
-  endif()
+  
 
   if(KHIOPS_DRIVER STREQUAL "azure")
     add_subdirectory(azure)
