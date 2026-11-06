@@ -27,7 +27,7 @@ set(SOURCES
     util.cpp
     version.hpp
 )
-list(TRANSFORM SOURCES PREPEND azure/src/khiops_driver_azure/)
+list(TRANSFORM SOURCES PREPEND "${CMAKE_CURRENT_SOURCE_DIR}/src/khiops_driver_azure/")
 
 set(LINK_LIBS
     Azure::azure-core

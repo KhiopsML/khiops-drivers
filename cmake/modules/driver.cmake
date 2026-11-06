@@ -14,7 +14,7 @@ function(add_driver LIBFILENAME SOURCES EXTRA_INCLUDE_DIRS LINK_LIBS)
         util.hpp
         util.cpp
     )
-    list(TRANSFORM COMMON_SOURCES PREPEND src/khiops_driver_common/)
+    list(TRANSFORM COMMON_SOURCES PREPEND "${CMAKE_SOURCE_DIR}/src/khiops_driver_common/")
 
     add_library(driver SHARED ${COMMON_SOURCES} ${SOURCES})
 
@@ -29,9 +29,7 @@ function(add_driver LIBFILENAME SOURCES EXTRA_INCLUDE_DIRS LINK_LIBS)
     endif()
 
     set_target_properties(driver PROPERTIES SOVERSION "${PROJECT_VERSION_MAJOR}" VERSION "${RAW_VERSION}")
-    set_target_properties(driver PROPERTIES RUNTIME_OUTPUT_NAME "${LIBFILENAME}" LIBRARY_OUTPUT_NAME "${LIBFILENAME}" ARCHIVE_OUTPUT_NAME "${LIBFILENAME}")
-    # Avoid generating shared libraries with version numbers in the filenames.
-    set(CMAKE_PLATFORM_NO_VERSIONED_SONAME 1)
+    set_target_properties(driver PROPERTIES PREFIX "" RUNTIME_OUTPUT_NAME "${LIBFILENAME}" LIBRARY_OUTPUT_NAME "${LIBFILENAME}" ARCHIVE_OUTPUT_NAME "${LIBFILENAME}")
     # We must use these weird generator expressions to avoid the Debug and Release directories in VS: https://stackoverflow.com/q/47175912
     set_target_properties(driver PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin" LIBRARY_OUTPUT_DIRECTORY $<1:${CMAKE_CURRENT_BINARY_DIR}/lib> ARCHIVE_OUTPUT_DIRECTORY $<1:${CMAKE_CURRENT_BINARY_DIR}/lib>)
 

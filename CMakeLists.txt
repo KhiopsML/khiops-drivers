@@ -89,6 +89,9 @@ else()
     set(CMAKE_VISIBILITY_INLINES_HIDDEN 1)
 endif()
 
+# Avoid generating shared libraries with version numbers in the filenames.
+set(CMAKE_PLATFORM_NO_VERSIONED_SONAME ON)
+
 # Import 'add_driver' function.
 include(driver)
 
@@ -104,7 +107,7 @@ else()
     message(FATAL_ERROR "DRIVER is set to '${DRIVER}' but must be one of 'azure', 'gcs', or 's3'")
 endif()
 
-message(FATAL_ERROR "test end")
+return()
 
 
 # Helper: per-driver extra CMake args (Windows triplet, vcpkg toolchain...)
